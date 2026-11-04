@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, WS } from '../api';
+import { useAgentStore } from './useAgentStore';
 
 export interface Account {
   account_id: string; stage: 'EVALUATION' | 'FUNDED'; closed_balance: number; open_pnl: number;
@@ -33,7 +34,13 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     let ws: WebSocket | null = null; let alive = true;
     const open = () => {
       ws = new WebSocket(`${WS}/ws/events`);
-      ws.onmessage = (m) => set((s) => ({ events: [JSON.parse(m.data), ...s.events].slice(0, 200) }));
+      ws.onmessage = (m) => {
+        const ev = JSON.parse(m.data) as FleetEvent;
+        if (ev.type === 'mcp_tool') {
+          useAgentStore.getState().pushTool({ tool: String(ev.tool), args: (ev.args as Record<string, unknown>) || {}, result: ev.result ?? undefined, error: (ev.error as string) || undefined });
+        }
+        set((s) => ({ events: [ev, ...s.events].slice(0, 200) }));
+      };
       ws.onclose = () => { if (alive) setTimeout(open, 3000); };
     };
     open();

@@ -45,3 +45,22 @@ def test_backtest_runs_all_strategies():
         r = run_backtest(BacktestConfig(strategy_name=st, end_date="2025-03-31"))
         assert {"win_rate", "profit_factor", "max_drawdown_eod", "total_net_pnl",
                 "qualified_payouts", "liquidated_accounts_count"} <= r.keys()
+
+
+def test_plugin_strategy_and_csv(tmp_path):
+    from backend.src.trading.backtester import list_strategies
+    assert "example_news_breakout" in list_strategies()
+    r = run_backtest(BacktestConfig(strategy_name="example_news_breakout", end_date="2025-03-31"))
+    assert r["trades"] >= 0
+    csv = tmp_path / "ticks.csv"
+    rows = ["timestamp,price"] + [f"2025-01-06T{h:02d}:{m:02d}:00,{2650 + (h - 8) + m / 60:.1f}" for h in range(8, 17) for m in range(60)]
+    csv.write_text("\n".join(rows))
+    r = run_backtest(BacktestConfig(strategy_name="breakout", start_date="2025-01-06", end_date="2025-01-06", tick_csv=str(csv)))
+    assert r["data_source"] == str(csv) and r["trades"] == 1 and r["total_net_pnl"] > 0
+
+
+def test_state_persists(tmp_path):
+    s = RiskSentinel(); a = "LUCID_SLAVE_01"
+    s.realize(a, 1000); s.end_of_day(a, "2025-01-02"); s.save(tmp_path / "st.json")
+    s2 = RiskSentinel(); assert s2.load(tmp_path / "st.json")
+    assert s2.accounts[a].mll == 146500 and s2.accounts[a].last_eod == "2025-01-02"

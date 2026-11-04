@@ -2,7 +2,7 @@
 
 Uses a seeded synthetic tick stream (regular-hours random walk + scheduled CPI/Core PCE/
 NFP/FOMC momentum bursts). Synthetic results validate rule logic only -- they are NOT
-evidence of real-market edge. `load_tick_csv` is provided for wiring real data next.
+evidence of real-market edge. Pass tick_csv for real data; drop strategies in closed-claw/strategies/.
 """
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ class BacktestConfig:
     lot_size_micros: int = 20
     event_filter: list[str] | None = None
     seed: int = 7
+    tick_csv: str | None = None  # CSV with timestamp,price (ET). Overrides synthetic data.
     stage: str = "EVALUATION"
 
 
@@ -97,16 +98,55 @@ def synthetic_day_ticks(rng: np.random.Generator, day: date, open_px: float, eve
     return secs, px, spread
 
 
-def load_tick_csv(path: str):
+def load_tick_csv(path: str) -> dict[date, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """CSV columns: timestamp (ISO, ET), price, optional spread_ticks. Resampled to 1s grid
+    08:00-16:59 per day (forward-filled) so strategies see the same shape as synthetic data."""
     import csv
-    rows = list(csv.DictReader(Path(path).open()))
-    ts = np.array([datetime.fromisoformat(r["timestamp"]) for r in rows])
-    px = np.array([float(r["price"]) for r in rows])
-    return ts, px
+    by_day: dict[date, list[tuple[int, float, float]]] = {}
+    with Path(path).open() as f:
+        for r in csv.DictReader(f):
+            ts = datetime.fromisoformat(r["timestamp"])
+            sec = ts.hour * 3600 + ts.minute * 60 + ts.second
+            if 8 * 3600 <= sec < 17 * 3600:
+                by_day.setdefault(ts.date(), []).append((sec, float(r["price"]), float(r.get("spread_ticks") or 1)))
+    out = {}
+    secs = np.arange(8 * 3600, 17 * 3600)
+    for d, rows in by_day.items():
+        rows.sort()
+        s_arr = np.array([r[0] for r in rows]); p_arr = np.array([r[1] for r in rows]); sp = np.array([r[2] for r in rows])
+        idx = np.clip(np.searchsorted(s_arr, secs, side="right") - 1, 0, len(rows) - 1)
+        out[d] = (secs, p_arr[idx], sp[idx])
+    return out
 
 
-def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict]):
+STRATEGY_DIR = Path(__file__).resolve().parents[3] / "strategies"
+
+
+def list_strategies() -> list[str]:
+    plugins = [p.stem for p in STRATEGY_DIR.glob("*.py") if not p.name.startswith("_")]
+    return sorted(set(STRATEGIES) | set(plugins))
+
+
+def _plugin(name: str):
+    import importlib.util
+    path = STRATEGY_DIR / f"{name}.py"
+    if not path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location(f"claw_strategy_{name}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    if not hasattr(mod, "generate_signals"):
+        raise ValueError(f"{path} must define generate_signals(secs, px, spread, events)")
+    return mod.generate_signals
+
+
+def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict], spread=None):
     """Return list of (entry_idx, side, exit_idx)."""
+    plugin = _plugin(strategy) if strategy not in STRATEGIES else None
+    if plugin:
+        raw = plugin(secs, px, spread if spread is not None else np.ones(px.size), events)
+        return [(int(e), int(np.sign(sd)), int(min(x, px.size - 1))) for e, sd, x in raw
+                if 0 <= int(e) < px.size and sd != 0 and int(x) > int(e)]
     trades = []
     if strategy in ("news_momentum", "news_fade"):
         for ev in events:
@@ -132,7 +172,7 @@ def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict]
                 i, side = min(cand)
                 trades.append((orb_end + i, side, min(px.size - 1, orb_end + i + 1800)))
     else:
-        raise ValueError(f"unknown strategy {strategy}; choose from {STRATEGIES}")
+        raise ValueError(f"unknown strategy {strategy}; choose from {list_strategies()}")
     return trades
 
 
@@ -147,6 +187,7 @@ def run_backtest(cfg: BacktestConfig) -> dict:
     start, end = date.fromisoformat(cfg.start_date), date.fromisoformat(cfg.end_date)
     sched = build_news_schedule(start, end, cfg.event_filter)
     rng = np.random.default_rng(cfg.seed)
+    real = load_tick_csv(cfg.tick_csv) if cfg.tick_csv else None
     px_open = 2650.0
     pnl_list, equity_curve, news_slips = [], [], []
     liquidations, payouts = 0, 0
@@ -158,13 +199,19 @@ def run_backtest(cfg: BacktestConfig) -> dict:
             d += timedelta(days=1)
             continue
         day_events = [e for e in sched if e["date"] == d]
-        secs, px, spread = synthetic_day_ticks(rng, d, px_open, day_events)
+        if real is not None:
+            if d not in real:
+                d += timedelta(days=1)
+                continue
+            secs, px, spread = real[d]
+        else:
+            secs, px, spread = synthetic_day_ticks(rng, d, px_open, day_events)
         px_open = float(px[-1])
         if acct.liquidated:
             # restart a fresh account after liquidation (models buying a reset)
             acct = sentinel.new_account("BACKTEST", stage=cfg.stage)  # type: ignore[arg-type]
             sentinel.accounts["BACKTEST"] = acct
-        for e_idx, side, x_idx in _signals(cfg.strategy_name, secs, px, day_events):
+        for e_idx, side, x_idx in _signals(cfg.strategy_name, secs, px, day_events, spread):
             cap = funded_max_contracts(acct.closed_profit) if cfg.stage == "FUNDED" else 100
             qty = min(cfg.lot_size_micros, cap)
             slip_e = spread[e_idx] / 2 + (2 if spread[e_idx] > 1 else 0)
@@ -216,5 +263,5 @@ def run_backtest(cfg: BacktestConfig) -> dict:
         "liquidated_accounts_count": liquidations,
         "news_slippage": news_slips[-50:],
         "equity_curve": equity_curve,
-        "data_source": "synthetic_seeded",
+        "data_source": cfg.tick_csv or "synthetic_seeded",
     }

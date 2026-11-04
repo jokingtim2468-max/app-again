@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 EOD_CLOSE = time(17, 0)
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "fleet.json"
+STATE_PATH = Path(__file__).resolve().parents[2] / "state" / "fleet_state.json"
 
 Stage = Literal["EVALUATION", "FUNDED"]
 
@@ -204,6 +205,21 @@ class RiskSentinel:
         }
         acct.events.append(payload["operator_alert"])
         return payload
+
+    def save(self, path: Path = STATE_PATH) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({aid: asdict(a) for aid, a in self.accounts.items()}, indent=1))
+        tmp.replace(path)  # atomic
+
+    def load(self, path: Path = STATE_PATH) -> bool:
+        if not path.exists():
+            return False
+        data = json.loads(path.read_text())
+        for aid, d in data.items():
+            if aid in self.accounts:
+                self.accounts[aid] = AccountState(**d)
+        return True
 
     def snapshot(self) -> dict:
         return {aid: a.to_dict() for aid, a in self.accounts.items()}

@@ -14,11 +14,12 @@ from pydantic import BaseModel
 
 from .ai import ollama_client
 from .containers.docker_manager import DockerManager
-from .trading.backtester import BacktestConfig, run_backtest
+from .trading.backtester import BacktestConfig, list_strategies, run_backtest
 from .trading.risk_sentinel import ET, RiskSentinel
 from .trading.tradovate_bridge import Fill, TradovateBridge
 
 sentinel = RiskSentinel()
+sentinel.load()  # resume MLL / payouts / qualifying days across restarts
 events: asyncio.Queue = asyncio.Queue(maxsize=1000)
 
 
@@ -31,6 +32,12 @@ def _emit(e: dict) -> None:
 
 bridge = TradovateBridge(sentinel, on_event=_emit)
 docker_mgr = DockerManager()
+
+
+async def autosave():
+    while True:
+        await asyncio.sleep(5)
+        await asyncio.to_thread(sentinel.save)
 
 
 async def eod_scheduler():
@@ -47,8 +54,9 @@ async def eod_scheduler():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    tasks = [asyncio.create_task(eod_scheduler()), asyncio.create_task(bridge.run())]
+    tasks = [asyncio.create_task(eod_scheduler()), asyncio.create_task(bridge.run()), asyncio.create_task(autosave())]
     yield
+    sentinel.save()
     for t in tasks:
         t.cancel()
 
@@ -66,6 +74,7 @@ class BacktestReq(BaseModel):
     lot_size_micros: int = 20
     event_filter: list[str] | None = None
     stage: str = "EVALUATION"
+    tick_csv: str | None = None
 
 
 class OrderReq(BaseModel):
@@ -136,6 +145,18 @@ def approve_payout(account_id: str, req: PayoutReq):
     if "graduation" in res:
         _emit({"type": "graduation_alert", **res["graduation"]})
     return res
+
+
+@app.get("/api/strategies")
+def strategies():
+    return list_strategies()
+
+
+@app.post("/api/agent/tool_event")
+def tool_event(body: dict):
+    """MCP server reports each tool call here so the UI chat drawer can render it."""
+    _emit({"type": "mcp_tool", **body})
+    return {"ok": True}
 
 
 @app.post("/api/risk/validate")

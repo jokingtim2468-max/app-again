@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../api';
 
 interface Result {
@@ -28,10 +28,13 @@ export default function BacktestView() {
   const [form, setForm] = useState({ strategy_name: 'news_momentum', start_date: '2025-01-01', end_date: '2025-12-31', lot_size_micros: 20, event_filter: 'CPI,CORE_PCE,NFP,FOMC' });
   const [res, setRes] = useState<Result | null>(null);
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const [strategies, setStrategies] = useState<string[]>(['news_momentum', 'news_fade', 'breakout']);
+  const [tickCsv, setTickCsv] = useState('');
+  useEffect(() => { api<string[]>('/api/strategies').then(setStrategies).catch(() => undefined); }, []);
   const run = async () => {
     setBusy(true); setErr('');
     try {
-      setRes(await api<Result>('/api/backtest', { method: 'POST', body: JSON.stringify({ ...form, event_filter: form.event_filter.split(',').map((s) => s.trim()).filter(Boolean) }) }));
+      setRes(await api<Result>('/api/backtest', { method: 'POST', body: JSON.stringify({ ...form, tick_csv: tickCsv || null, event_filter: form.event_filter.split(',').map((s) => s.trim()).filter(Boolean) }) }));
     } catch (e) { setErr(String(e)); } finally { setBusy(false); }
   };
   const stat = (label: string, v: string, cls = '') => (
@@ -42,12 +45,13 @@ export default function BacktestView() {
       <p className="h">MGC news backtest · LucidFlex 150K EOD rules</p>
       <div className="row wire" style={{ padding: 12 }}>
         <select value={form.strategy_name} onChange={(e) => setForm({ ...form, strategy_name: e.target.value })} aria-label="Strategy">
-          <option>news_momentum</option><option>news_fade</option><option>breakout</option>
+          {strategies.map((s) => <option key={s}>{s}</option>)}
         </select>
         <input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} aria-label="Start" />
         <input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} aria-label="End" />
         <input type="number" value={form.lot_size_micros} onChange={(e) => setForm({ ...form, lot_size_micros: +e.target.value })} style={{ width: 70 }} aria-label="Micros" />
         <input value={form.event_filter} onChange={(e) => setForm({ ...form, event_filter: e.target.value })} style={{ width: 220 }} aria-label="Events" />
+        <input value={tickCsv} onChange={(e) => setTickCsv(e.target.value)} placeholder="tick CSV path (optional)" style={{ width: 200 }} aria-label="Tick CSV" />
         <button onClick={run} disabled={busy}>{busy ? 'Running…' : 'Run backtest'}</button>
       </div>
       {err && <div className="neg">{err}</div>}
