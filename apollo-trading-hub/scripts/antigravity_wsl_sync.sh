@@ -9,5 +9,5 @@ if [ -d "$DEST/.git" ]; then
 else
   mkdir -p "$(dirname "$DEST")" && git clone --branch "$BRANCH" "$REPO" "$DEST"
 fi
-bash "$DEST/apollo-trading/scripts/setup_dev.sh"
+bash "$DEST/apollo-trading-hub/scripts/setup_dev.sh"
 echo "READY: $DEST  (Windows path: \\\\wsl\$\\${WSL_DISTRO_NAME:-Ubuntu}${DEST})"

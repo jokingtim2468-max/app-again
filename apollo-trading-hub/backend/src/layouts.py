@@ -1,4 +1,4 @@
-"""Workspace layout persistence: ~/.apollo-trading/layouts.json (shared by Electron UI, API and MCP)."""
+"""Workspace layout persistence: ~/.apollo-trading-hub/layouts.json (shared by Electron UI, API and MCP)."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-LAYOUT_FILE = Path(os.getenv("APOLLO_LAYOUT_FILE", Path.home() / ".apollo-trading" / "layouts.json"))
+LAYOUT_FILE = Path(os.getenv("APOLLO_LAYOUT_FILE", Path.home() / ".apollo-trading-hub" / "layouts.json"))
 WIDGET_TYPES = {"widget-chart", "widget-dom", "widget-fleet", "widget-tape", "widget-backtest", "widget-terminal"}
 _lock = threading.Lock()
 

@@ -1,6 +1,6 @@
 """Script adapter: turns (almost) any user strategy script into something the Apollo engine can test.
 
-The user's file is NEVER modified. It is hashed, copied to ~/.apollo-trading/adapted/<hash>/, and loaded from
+The user's file is NEVER modified. It is hashed, copied to ~/.apollo-trading-hub/adapted/<hash>/, and loaded from
 that copy inside a compatibility harness. The result is an `AdaptedStrategy` whose `.run(bars)` returns a target
 position per bar (+ long / - short / 0 flat), plus a human-readable report of how the script was understood.
 
@@ -35,7 +35,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-CACHE = Path.home() / ".apollo-trading" / "adapted"
+CACHE = Path.home() / ".apollo-trading-hub" / "adapted"
 VECTOR_NAMES = ["generate_signals", "signals", "signal", "strategy", "compute_signals", "get_signals",
                 "calculate_signals", "run_strategy", "run", "apply", "predict", "logic", "trade_logic"]
 EVENT_METHODS = ["on_bar", "next", "on_candle", "on_data", "handle_bar", "onBar", "OnBar", "OnTick", "on_tick", "ontick", "handle_data"]

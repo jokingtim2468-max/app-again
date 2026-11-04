@@ -1,5 +1,5 @@
 {
-  "name": "apollo-trading",
+  "name": "apollo-trading-hub",
   "version": "0.1.0",
   "description": "Apollo Trading - modular prop fleet execution terminal",
   "main": "dist-electron/main.js",
@@ -34,7 +34,7 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "com.apollotrading.app",
+    "appId": "com.apollotradinghub.app",
     "productName": "Apollo Trading",
     "files": [
       "dist/**",

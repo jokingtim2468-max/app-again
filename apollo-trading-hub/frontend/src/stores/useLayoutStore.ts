@@ -125,7 +125,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
   reset: () => get().load(get().activeName),
 
-  exportJson: () => JSON.stringify({ app: 'apollo-trading', version: 1, name: get().activeName, widgets: get().widgets }, null, 2),
+  exportJson: () => JSON.stringify({ app: 'apollo-trading-hub', version: 1, name: get().activeName, widgets: get().widgets }, null, 2),
   importJson: async (text) => {
     const d = JSON.parse(text);
     const widgets: WidgetItem[] = Array.isArray(d) ? d : d.widgets;

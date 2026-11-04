@@ -2,7 +2,7 @@
 
 Uses a seeded synthetic tick stream (regular-hours random walk + scheduled CPI/Core PCE/
 NFP/FOMC momentum bursts). Synthetic results validate rule logic only -- they are NOT
-evidence of real-market edge. Pass tick_csv for real data; drop strategies in apollo-trading/strategies/.
+evidence of real-market edge. Pass tick_csv for real data; drop strategies in apollo-trading-hub/strategies/.
 """
 from __future__ import annotations
 

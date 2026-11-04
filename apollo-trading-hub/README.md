@@ -22,11 +22,11 @@ python -m pytest tests
 - Every tool is a widget: `widget-chart`, `widget-dom`, `widget-fleet`, `widget-tape`, `widget-backtest`, `widget-terminal`.
 - **Builder tab** (`#/builder`): catalog → *Add to Workspace*, 12-col snap grid with collision prevention, per-widget settings (⚙),
   maximize, close, presets (*Execution Focus*, *Risk Command*, *Quant Lab*), Save / Save as / Reset / Delete, Export & Import JSON, Edit ↔ Lock.
-- Layouts persist in `~/.apollo-trading/layouts.json` (override with `APOLLO_LAYOUT_FILE`). Agents write them via MCP `save_custom_layout`; the open UI hot-swaps.
+- Layouts persist in `~/.apollo-trading-hub/layouts.json` (override with `APOLLO_LAYOUT_FILE`). Agents write them via MCP `save_custom_layout`; the open UI hot-swaps.
 
 ## Testing any script (your file is never modified)
 Drop scripts in `strategies/` or pass any path (UI *Script path*, API `script_path`, MCP `run_backtest(script_path=...)`).
-Apollo hashes the file, copies it to `~/.apollo-trading/adapted/<hash>/` and adapts **that copy**. Supported, auto-detected:
+Apollo hashes the file, copies it to `~/.apollo-trading-hub/adapted/<hash>/` and adapts **that copy**. Supported, auto-detected:
 
 | Style | Example |
 |---|---|

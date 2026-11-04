@@ -32,7 +32,7 @@ merge_server(desktop_config(), {
 })
 if a.claude_code:
     if shutil.which("claude"):
-        subprocess.run(["claude", "mcp", "add", "apollo-trading", "--scope", "user",
+        subprocess.run(["claude", "mcp", "add", "apollo-trading-hub", "--scope", "user",
                         "-e", f"PYTHONPATH={MCP_DIR.as_posix()}", "--", python_exe(), server], check=False)
     else:
         print("[warn] `claude` CLI not on PATH; skipped Claude Code registration")

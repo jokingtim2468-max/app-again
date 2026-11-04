@@ -20,7 +20,7 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 from src import config  # noqa: E402  (adds repo root to sys.path)
 from src.tools import backtest_tools, fleet_tools, layout_tools, risk_tools  # noqa: E402
 
-mcp = FastMCP("apollo-trading", host=config.MCP_HOST, port=config.MCP_PORT)
+mcp = FastMCP("apollo-trading-hub", host=config.MCP_HOST, port=config.MCP_PORT)
 
 
 def _report(tool: str, args: dict, result=None, error: str | None = None) -> None:
@@ -60,7 +60,7 @@ def run_backtest(strategy_name: str = "news_momentum", start_date: str = "2025-0
     """Backtest ANY strategy script under LucidFlex 150K EOD rules (MGC economics).
     script_path: any .py (pandas/vectorbt/backtrader/backtesting.py/on_bar/MetaTrader5 bot), .mq5/.ex5 EA (MT5 tester),
                  or signal .csv. The user's file is never modified; a harness copy is adapted. Omit to use strategy_name
-                 (built-in or a file in apollo-trading/strategies/).
+                 (built-in or a file in apollo-trading-hub/strategies/).
     data_source: synthetic | csv (data_path to bars or ticks) | mt5 (real broker history for `symbol`, e.g. XAUUSD).
     Returns metrics, equity curve, trade log and the adapter report (incl. look-ahead check)."""
     return backtest_tools.run_backtest(strategy_name=strategy_name, start_date=start_date, end_date=end_date,
@@ -83,7 +83,7 @@ def inspect_strategy(script: str) -> dict:
 @mcp.tool()
 @reported
 def list_strategies() -> list[str]:
-    """Strategy names available to run_backtest (built-ins + files in apollo-trading/strategies/)."""
+    """Strategy names available to run_backtest (built-ins + files in apollo-trading-hub/strategies/)."""
     from backend.src.trading.backtester import list_strategies as ls
     return ls()
 

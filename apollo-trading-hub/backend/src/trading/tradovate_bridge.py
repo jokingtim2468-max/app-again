@@ -22,7 +22,7 @@ import websockets
 
 from .risk_sentinel import RiskSentinel
 
-log = logging.getLogger("apollo_trading.bridge")
+log = logging.getLogger("apollo_trading_hub.bridge")
 
 ENDPOINTS = {
     "demo": ("https://demo.tradovateapi.com/v1", "wss://demo.tradovateapi.com/v1/websocket"),
