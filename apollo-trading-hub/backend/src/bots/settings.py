@@ -10,7 +10,9 @@ import os
 import threading
 from pathlib import Path
 
-PATH = Path(os.getenv("APOLLO_SETTINGS", Path(__file__).resolve().parents[2] / "state" / "settings.json"))
+from ..paths import STATE_DIR  # noqa: E402
+
+PATH = Path(os.getenv("APOLLO_SETTINGS", STATE_DIR / "settings.json"))
 _lock = threading.Lock()
 SECRET_KEYS = {"token", "secret"}
 NOTIFY_KINDS = ["startup", "payout_ready", "PASSED", "FAILED", "PARKED", "UNPARKED", "TARGET_HIT", "DAILY_LIMIT_HIT",

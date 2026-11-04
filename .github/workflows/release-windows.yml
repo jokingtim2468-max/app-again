@@ -1,0 +1,25 @@
+# Builds the Apollo Trading Windows installer and publishes it as a GitHub release.
+# Installed apps check these releases and update themselves.
+# Trigger: push a tag like v1.0.1 (bump apollo-trading-hub/frontend/package.json "version" first), or run it manually.
+name: release-windows
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apollo-trading-hub/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --no-audit --no-fund
+      - run: npm run release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

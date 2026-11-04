@@ -16,7 +16,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
-DB_PATH = Path(os.getenv("APOLLO_DB", Path(__file__).resolve().parents[1] / "state" / "apollo.db"))
+from .paths import STATE_DIR  # noqa: E402
+
+DB_PATH = Path(os.getenv("APOLLO_DB", STATE_DIR / "apollo.db"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS balances (ts TEXT, account TEXT, firm TEXT, kind TEXT, balance REAL, equity REAL, mll REAL,

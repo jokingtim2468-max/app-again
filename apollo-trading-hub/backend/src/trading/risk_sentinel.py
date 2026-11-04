@@ -19,9 +19,13 @@ from zoneinfo import ZoneInfo
 ET = ZoneInfo("America/New_York")
 EOD_CLOSE = time(17, 0)
 ROOT = Path(__file__).resolve().parents[2]
-CONFIG_PATH = ROOT / "config" / "fleet.json"
+from ..paths import CONFIG_DIR, STATE_DIR  # noqa: E402
+
+CONFIG_PATH = CONFIG_DIR / "fleet.json"
+# firm rule files ship with the app; a copy in the user's data dir (config/firms/<firm>.json) overrides the bundled one
 FIRMS_DIR = ROOT / "config" / "firms"
-STATE_PATH = ROOT / "state" / "fleet_state.json"
+USER_FIRMS_DIR = CONFIG_DIR / "firms"
+STATE_PATH = STATE_DIR / "fleet_state.json"
 
 Stage = Literal["EVALUATION", "FUNDED"]
 
@@ -36,7 +40,9 @@ def load_fleet_config(path: Path = CONFIG_PATH) -> dict:
 
 def list_firms() -> dict:
     out = {}
-    for f in sorted(FIRMS_DIR.glob("*.json")):
+    files = {f.stem: f for f in FIRMS_DIR.glob("*.json")}
+    files.update({f.stem: f for f in USER_FIRMS_DIR.glob("*.json")} if USER_FIRMS_DIR.exists() else {})
+    for f in sorted(files.values(), key=lambda x: x.stem):
         d = json.loads(f.read_text())
         out[f.stem] = {"name": d["name"], "verified": d.get("verified", False), "note": d.get("note", ""),
                        "platforms": d.get("platforms", []), "contract": d.get("contract", "MGC"),
@@ -45,7 +51,9 @@ def list_firms() -> dict:
 
 
 def resolve_rules(firm: str, plan: str, size: str, overrides: dict | None = None) -> dict:
-    p = FIRMS_DIR / f"{firm}.json"
+    p = USER_FIRMS_DIR / f"{firm}.json"
+    if not p.exists():
+        p = FIRMS_DIR / f"{firm}.json"
     if not p.exists():
         raise ValueError(f"unknown firm {firm!r}; available: {sorted(x.stem for x in FIRMS_DIR.glob('*.json'))}")
     d = json.loads(p.read_text())

@@ -7,7 +7,9 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-LAYOUT_FILE = Path(os.getenv("APOLLO_LAYOUT_FILE", Path.home() / ".apollo-trading-hub" / "layouts.json"))
+from .paths import DATA_DIR  # noqa: E402
+
+LAYOUT_FILE = Path(os.getenv("APOLLO_LAYOUT_FILE", (DATA_DIR / "layouts.json") if DATA_DIR else Path.home() / ".apollo-trading-hub" / "layouts.json"))
 WIDGET_TYPES = {"widget-chart", "widget-dom", "widget-fleet", "widget-tape", "widget-backtest", "widget-terminal", "widget-accounts", "widget-payouts", "widget-reports"}
 _lock = threading.Lock()
 

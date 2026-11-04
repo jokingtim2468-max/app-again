@@ -1,6 +1,6 @@
 {
   "name": "apollo-trading-hub",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Apollo Trading - modular prop fleet execution terminal",
   "main": "dist-electron/main.js",
   "private": true,
@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build && tsc -p electron/tsconfig.json",
     "electron:dev": "tsc -p electron/tsconfig.json && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
     "dist:win": "npm run build && electron-builder --win nsis --publish never",
-    "build:demo": "vite build --mode demo --outDir dist-demo"
+    "build:demo": "vite build --mode demo --outDir dist-demo",
+    "release:win": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -39,19 +40,35 @@
     "productName": "Apollo Trading",
     "files": [
       "dist/**",
-      "dist-electron/**"
+      "dist-electron/**",
+      "build/icon.png"
     ],
     "directories": {
       "output": "release"
     },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.png"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Apollo-Trading-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Apollo Trading",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "publish": [
       {
@@ -59,6 +76,39 @@
         "owner": "jokingtim2468-max",
         "repo": "app-again"
       }
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "apollo/backend",
+        "filter": [
+          "**/*",
+          "!state/**",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "../mcp-server",
+        "to": "apollo/mcp-server",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "../strategies",
+        "to": "apollo/strategies"
+      },
+      {
+        "from": "../scripts",
+        "to": "apollo/scripts",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**"
+        ]
+      }
     ]
-  }
+  },
+  "author": "Apollo Trading",
+  "productName": "Apollo Trading"
 }

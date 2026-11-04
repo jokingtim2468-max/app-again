@@ -9,7 +9,22 @@ copy-trade and backtest is deterministic and rule-based.
 | FastAPI backend: risk sentinel, Tradovate copier, market feed, backtester, layouts, Docker | `backend/` | 5050 |
 | MCP server (stdio + SSE) | `mcp-server/` | 54981 |
 
-## Run
+## Install on Windows (desktop app)
+Open **PowerShell** and run:
+```powershell
+winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
+git clone -b claude/apollo-trading-hub https://github.com/jokingtim2468-max/app-again.git $HOME\ApolloTrading
+powershell -ExecutionPolicy Bypass -File $HOME\ApolloTrading\apollo-trading-hub\scripts\install_windows.ps1
+```
+The script installs Node.js and Python 3.12 if they're missing, builds the **Apollo Trading setup wizard** and runs it.
+The wizard creates a **Desktop shortcut** and a Start Menu entry. On first launch the app sets up its own Python
+environment (1–3 min, once). After that it starts and stops its engine by itself. Your data lives in
+`%APPDATA%\Apollo Trading` (kept across updates and uninstalls). Logs: `%APPDATA%\Apollo Trading\logs`.
+**Auto-update:** push a tag like `v1.0.1` (after bumping `frontend/package.json` version); the `release-windows`
+workflow publishes the installer to GitHub Releases and installed apps update themselves.
+To update by hand, run the install script again.
+
+## Run (developers)
 ```bash
 bash scripts/setup_dev.sh                 # Linux/WSL   (Windows: scripts\setup_dev.bat)
 python -m backend.src.server              # backend

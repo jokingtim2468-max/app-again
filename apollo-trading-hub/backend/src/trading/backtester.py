@@ -131,7 +131,7 @@ def load_tick_csv(path: str) -> dict[date, tuple[np.ndarray, np.ndarray, np.ndar
     return out
 
 
-STRATEGY_DIR = Path(__file__).resolve().parents[3] / "strategies"
+from ..paths import STRATEGY_DIR  # noqa: E402,F811  (user data dir when installed)
 
 
 SCRIPT_EXTS = (".py", ".ipynb", ".pine", ".mq5", ".ex5", ".csv", ".tsv", ".json")
