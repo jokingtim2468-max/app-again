@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+node_modules/
+dist/
+dist-electron/
+release/
+*.gguf
+export/
+outputs/
+news_dataset.jsonl
+.agents/

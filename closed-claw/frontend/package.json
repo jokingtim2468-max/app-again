@@ -1,0 +1,40 @@
+{
+  "name": "closed-claw",
+  "version": "0.1.0",
+  "description": "Closed Claw local-first AI workspace & fleet monitor",
+  "main": "dist-electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && tsc -p electron/tsconfig.json",
+    "electron:dev": "tsc -p electron/tsconfig.json && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
+    "dist:win": "npm run build && electron-builder --win nsis --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "ai.closedclaw.app",
+    "productName": "Closed Claw",
+    "files": ["dist/**", "dist-electron/**"],
+    "directories": { "output": "release" },
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true },
+    "publish": [{ "provider": "github", "owner": "jokingtim2468-max", "repo": "app-again" }]
+  }
+}

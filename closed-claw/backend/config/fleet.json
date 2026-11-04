@@ -1,0 +1,28 @@
+{
+  "firm": "LUCID_TRADING",
+  "account_model": "FLEX",
+  "tier": "150K",
+  "contract": "MGC",
+  "master_account": "LUCID_MASTER_01",
+  "slave_accounts": [
+    "LUCID_SLAVE_01",
+    "LUCID_SLAVE_02",
+    "LUCID_SLAVE_03",
+    "LUCID_SLAVE_04"
+  ],
+  "rules": {
+    "starting_balance": 150000.00,
+    "starting_drawdown": 4500.00,
+    "drawdown_type": "END_OF_DAY",
+    "mll_lock_threshold": 154600.00,
+    "mll_lock_level": 150100.00,
+    "news_trading_allowed": true,
+    "eval_target": 9000.00,
+    "eval_consistency_cap_usd": 3600.00,
+    "qualifying_day_threshold": 250.00,
+    "qualifying_days_required": 5,
+    "max_payout_per_request": 3000.00,
+    "max_payouts_before_graduation": 5,
+    "cashout_opt_out_value_net": 2025.00
+  }
+}

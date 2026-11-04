@@ -1,0 +1,19 @@
+@echo off
+REM Closed Claw dev bootstrap (Windows). Requires Python 3.11+, Node 20+, Docker Desktop, Ollama.
+setlocal
+cd /d %~dp0\..
+where python >nul 2>nul || (echo Python not found & exit /b 1)
+where npm >nul 2>nul || (echo Node/npm not found & exit /b 1)
+if not exist .venv python -m venv .venv
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r backend\requirements.txt -r mcp-server\requirements.txt || exit /b 1
+pushd frontend && call npm install && popd
+python scripts\setup_antigravity.py
+python scripts\setup_claude.py
+where ollama >nul 2>nul && (ollama list | findstr news-predictor-3b >nul || echo [info] Model news-predictor-3b not in Ollama yet - run cloud-training then: ollama create news-predictor-3b -f Modelfile)
+echo.
+echo Start backend:  .venv\Scripts\python -m backend.src.server
+echo Start MCP SSE:  cd mcp-server ^&^& ..\.venv\Scripts\python -m src.server --sse
+echo Start UI:       cd frontend ^&^& npm run electron:dev
+endlocal
