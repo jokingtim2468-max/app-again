@@ -6,14 +6,19 @@ export interface Account {
   equity: number; mll: number; mll_locked: boolean; distance_to_mll: number; closed_profit: number;
   day_start_balance: number; qualifying_days: number; payouts_approved: number; position_qty: number; avg_price: number;
   max_contracts: number | null; halted: boolean; liquidated: boolean; firm: string; firm_name: string; plan: string; size: string;
-  broker: string; contract: string; verified: boolean; drawdown_type: string; starting_drawdown: number; daily_loss_limit: number | null; day_pnl: number; daily_limit_hit: boolean; role: string; copy_ratio: number;
+  broker: string; contract: string; verified: boolean; parked: boolean; queue_position?: number | null; cost: number; passed_at: string | null; failed_at: string | null; purchased_at: string | null; total_paid_out: number; drawdown_type: string; starting_drawdown: number; daily_loss_limit: number | null; day_pnl: number; daily_limit_hit: boolean; role: string; copy_ratio: number;
   payout: { eligible: boolean; max_request: number };
+}
+export interface FirmSummary {
+  firm_name: string; cap: number | null; funded: number; funded_outside_app: number; slots_free: number | null; evals_trading: number;
+  parked: number; failed: number; passed: number; closed: number; accounts: number; cost: number; paid_out: number; net_cash: number;
+  open_equity_pnl: number; queue: string[];
 }
 export interface FleetEvent { type: string; ts?: string; [k: string]: unknown }
 
 interface FleetState {
   online: boolean; mode: string; master: string; symbol: string; last: number;
-  accounts: Account[]; events: FleetEvent[]; lastError: string | null;
+  accounts: Account[]; firms: Record<string, FirmSummary>; events: FleetEvent[]; lastError: string | null;
   start: () => () => void;
   refresh: () => Promise<void>;
   order: (action: 'Buy' | 'Sell', qty: number) => Promise<void>;
@@ -26,11 +31,11 @@ let timer: ReturnType<typeof setInterval> | undefined;
 let unsub: (() => void) | undefined;
 
 export const useFleetStore = create<FleetState>((set, get) => ({
-  online: false, mode: '—', master: '', symbol: 'MGC', last: 0, accounts: [], events: [], lastError: null,
+  online: false, mode: '—', master: '', symbol: 'MGC', last: 0, accounts: [], firms: {}, events: [], lastError: null,
   refresh: async () => {
     try {
-      const d = await api<{ mode: string; master: string; symbol: string; last: number; accounts: Record<string, Account> }>('/api/fleet/status');
-      set({ online: true, mode: d.mode, master: d.master, symbol: d.symbol, last: d.last, accounts: Object.values(d.accounts) });
+      const d = await api<{ mode: string; master: string; symbol: string; last: number; accounts: Record<string, Account>; firms: Record<string, FirmSummary> }>('/api/fleet/status');
+      set({ online: true, mode: d.mode, master: d.master, symbol: d.symbol, last: d.last, accounts: Object.values(d.accounts), firms: d.firms ?? {} });
     } catch { set({ online: false }); }
   },
   start: () => {

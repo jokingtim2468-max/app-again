@@ -37,6 +37,7 @@ def _emit(e: dict) -> None:
         q.put_nowait(e)
 
 
+sentinel.on_event = _emit
 bridge = FleetRouter(sentinel, on_event=_emit)
 bridge_task: asyncio.Task | None = None
 feed = MarketFeed(SYMBOL, on_event=_emit)
@@ -72,6 +73,12 @@ async def mark_to_market():
             if a.position_qty and a.avg_price:
                 pv = 100.0 if a.contract == "XAUUSD" else 10.0
                 sentinel.mark(aid, (feed.last - a.avg_price) * pv * a.position_qty)
+        for aid in list(sentinel.pending_flatten):  # just parked (firm funded cap full): flatten now
+            sentinel.pending_flatten.discard(aid)
+            try:
+                await bridge.flatten(aid, SYMBOL, price=feed.last)
+            except Exception as e:
+                _emit({"type": "route_error", "account": aid, "error": f"flatten on park failed: {e}"})
         if bracket:
             px, b = feed.last, bracket
             hit_tp = px >= b["tp"] if b["side"] > 0 else px <= b["tp"]
@@ -185,7 +192,10 @@ def fleet_status():
     snap = sentinel.snapshot()
     for aid in snap:
         snap[aid]["payout"] = sentinel.payout_eligibility(aid)
-    return {"name": sentinel.config.get("name", "fleet"), "mode": bridge.mode,
+        if snap[aid]["parked"]:
+            q = sentinel.queue(snap[aid]["firm"])
+            snap[aid]["queue_position"] = q.index(aid) + 1 if aid in q else None
+    return {"name": sentinel.config.get("name", "fleet"), "mode": bridge.mode, "firms": sentinel.firm_summary(),
             "master": sentinel.config["master_account"], "symbol": SYMBOL, "last": feed.last, "accounts": snap}
 
 
@@ -238,6 +248,29 @@ async def flatten_all():
     return {"ok": True}
 
 
+@app.get("/api/fleet/summary")
+def fleet_summary():
+    """Per firm: cap, funded/parked/failed/passed counts, queue, cost vs payouts."""
+    return sentinel.firm_summary()
+
+
+@app.get("/api/fleet/ledger")
+def fleet_ledger(account: str | None = None, firm: str | None = None, limit: int = 500):
+    rows = [e for e in sentinel.ledger if (not account or e["account"] == account) and (not firm or e.get("firm") == firm)]
+    return rows[-limit:][::-1]
+
+
+@app.post("/api/fleet/{account_id}/close")
+def close_account(account_id: str, body: dict | None = None):
+    """Mark an account closed (e.g. cashout completed / account cancelled): frees its funded slot."""
+    if account_id not in sentinel.accounts:
+        raise HTTPException(404, "unknown account")
+    if sentinel.accounts[account_id].position_qty:
+        raise HTTPException(409, "flatten the account first")
+    sentinel.close_account(account_id, (body or {}).get("reason", "closed by operator"))
+    return {"ok": True, "summary": sentinel.firm_summary().get(sentinel.accounts[account_id].firm)}
+
+
 @app.get("/api/firms")
 def firms():
     return list_firms()
@@ -260,20 +293,27 @@ async def put_fleet_config(cfg: dict):
     if any(a.position_qty for a in sentinel.accounts.values()):
         raise HTTPException(409, "flatten all accounts before changing the fleet")
     try:
-        new = RiskSentinel(cfg)
+        new = RiskSentinel(cfg, on_event=_emit)
     except (ValueError, KeyError, TypeError) as e:
         raise HTTPException(400, f"invalid fleet: {e}")
     for aid, a in new.accounts.items():  # keep risk state of accounts that didn't change firm/size
         old = sentinel.accounts.get(aid)
         if old and (old.firm, old.plan, old.size) == (a.firm, a.plan, a.size):
             for k in ("closed_balance", "day_start_balance", "mll", "mll_locked", "peak_equity", "qualifying_days",
-                      "payouts_approved", "total_paid_out", "halted", "liquidated", "status", "best_day_profit", "last_eod", "stage"):
+                      "payouts_approved", "total_paid_out", "halted", "liquidated", "status", "best_day_profit", "last_eod", "stage",
+                      "parked", "parked_at", "passed_at", "failed_at"):
                 setattr(a, k, getattr(old, k))
     tmp = CONFIG_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(cfg, indent=2))
     tmp.replace(CONFIG_PATH)
     if bridge_task:
         bridge_task.cancel()
+    new.ledger = sentinel.ledger
+    for firm in {a.firm for a in new.accounts.values()}:  # caps may have changed: re-check queue + parking
+        new.rebalance(firm)
+        for aid, a in new.accounts.items():
+            if a.firm == firm:
+                new.check_parking(aid)
     sentinel = new
     bridge = FleetRouter(sentinel, on_event=_emit)
     bridge_task = asyncio.create_task(bridge.run())

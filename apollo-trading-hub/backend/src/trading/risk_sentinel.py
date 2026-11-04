@@ -58,6 +58,8 @@ def resolve_rules(firm: str, plan: str, size: str, overrides: dict | None = None
     r["firm"], r["firm_name"], r["plan"], r["size"] = firm, d["name"], plan, size
     r["verified"] = bool(d.get("verified", False)) and not (overrides or {}).get("_unverified_override", False)
     r["contract"] = r.get("contract", d.get("contract", "MGC"))
+    r.setdefault("max_funded_accounts", d.get("max_funded_accounts"))  # firm-wide cap on simultaneously funded accounts
+    r.setdefault("park_buffer_usd", d.get("park_buffer_usd"))
     return r
 
 
@@ -108,7 +110,13 @@ class AccountState:
     position_qty: float = 0
     avg_price: float = 0.0
     last_eod: str | None = None
-    status: str = "ACTIVE"  # ACTIVE | ELIGIBLE_FOR_CASHOUT | LIQUIDATED | KILLED | DAILY_LIMIT
+    status: str = "ACTIVE"  # ACTIVE | PARKED | ELIGIBLE_FOR_CASHOUT | LIQUIDATED | KILLED | DAILY_LIMIT | CLOSED
+    parked: bool = False
+    parked_at: str | None = None
+    cost: float = 0.0
+    purchased_at: str | None = None
+    passed_at: str | None = None
+    failed_at: str | None = None
     firm: str = "lucid"
     plan: str = "FLEX"
     size: str = "150K"
@@ -145,12 +153,21 @@ class AccountState:
                  max_contracts=max_contracts(self.stage, self.closed_profit, r), drawdown_type=r.get("drawdown_type"),
                  starting_drawdown=r.get("starting_drawdown"), daily_loss_limit=r.get("daily_loss_limit"),
                  firm_name=r.get("firm_name"), day_pnl=round(self.day_pnl, 2))
+        d.pop("events", None)
+        d["recent_events"] = self.events[-5:]
         return d
 
 
+def _now() -> str:
+    return datetime.now(ET).isoformat(timespec="seconds")
+
+
 class RiskSentinel:
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict | None = None, on_event=None):
         self.config = config or load_fleet_config()
+        self.on_event = on_event or (lambda e: None)
+        self.ledger: list[dict] = []          # every lifecycle event, every account, every firm
+        self.pending_flatten: set[str] = set()  # accounts the router must flatten (just parked)
         self.accounts: dict[str, AccountState] = {}
         self.specs = [a for a in legacy_accounts(self.config) if a.get("enabled", True)]
         if not self.specs:
@@ -173,6 +190,10 @@ class RiskSentinel:
         a = self._fresh(spec["id"], rules, spec.get("stage", "EVALUATION"))
         a.broker, a.broker_account = spec.get("broker", "paper"), spec.get("broker_account", spec["id"])
         a.role, a.copy_ratio = spec.get("role", "copy"), float(spec.get("copy_ratio", 1.0))
+        a.cost = float(spec.get("cost", 0) or 0)
+        a.purchased_at = spec.get("purchased_at")
+        if spec.get("stage") == "FUNDED":
+            a.stage = "FUNDED"
         return a
 
     @staticmethod
@@ -211,12 +232,16 @@ class RiskSentinel:
                 reasons.append("account liquidated (MLL breached)")
             if acct.daily_limit_hit:
                 reasons.append("daily loss limit hit; locked until next session")
+            if acct.parked:
+                q = self.queue(acct.firm)
+                reasons.append(f"parked near eval target: {rules.get('firm_name')} funded cap {self.firm_cap(acct.firm)} is full "
+                               f"(queue position {q.index(account_id) + 1 if account_id in q else '?'})")
             if live and not acct.verified:
                 reasons.append(f"{rules.get('firm_name')} rules are an unverified template; confirm them and set verified=true before live trading")
         approved_qty = contract_qty if cap is None else max(0, min(contract_qty, cap - current))
         if cap is not None and projected > cap:
             reasons.append(f"projected {projected:g} exceeds {stage} cap {cap} (closed profit ${closed_profit:,.2f})")
-        blocked = acct is not None and (acct.halted or acct.liquidated or acct.daily_limit_hit or (live and not acct.verified))
+        blocked = acct is not None and (acct.halted or acct.liquidated or acct.daily_limit_hit or acct.parked or (live and not acct.verified))
         return {"account_id": account_id, "stage": stage, "symbol": symbol, "requested_qty": contract_qty,
                 "max_allowed": cap if cap is not None else contract_qty, "approved_qty": 0 if blocked else approved_qty,
                 "approved": not reasons, "reasons": reasons, "firm": rules.get("firm_name"), "verified": rules.get("verified")}
@@ -233,12 +258,14 @@ class RiskSentinel:
         if eq <= acct.mll and not acct.liquidated:
             acct.liquidated, acct.status = True, "LIQUIDATED"
             acct.events.append(f"LIQUIDATED: equity {eq:.2f} <= MLL {acct.mll:.2f}")
+            self._fail(acct)
         dll = r.get("daily_loss_limit")
         if dll and not acct.daily_limit_hit and not acct.liquidated and acct.day_pnl <= -dll:
             acct.daily_limit_hit = True
             if acct.status == "ACTIVE":
                 acct.status = "DAILY_LIMIT"
             acct.events.append(f"DAILY LOSS LIMIT: day PnL {acct.day_pnl:.2f} <= -{dll}")
+        self.check_parking(account_id)
         return acct
 
     def _trail(self, acct: AccountState, level: float) -> None:
@@ -277,6 +304,10 @@ class RiskSentinel:
         acct = self.accounts[account_id]
         acct.closed_balance += pnl
         acct.open_pnl = 0.0
+        if acct.equity <= acct.mll and not acct.liquidated:
+            acct.liquidated, acct.status = True, "LIQUIDATED"
+            self._fail(acct)
+        self.check_parking(account_id)
         return acct
 
     # ---- 5:00 PM ET close -------------------------------------------------
@@ -302,6 +333,8 @@ class RiskSentinel:
                 acct.status = "ACTIVE"
         acct.day_start_balance = acct.closed_balance
         acct.last_eod = session_date
+        if acct.stage == "EVALUATION" and not acct.liquidated and self.eval_passed(account_id):
+            self.promote(account_id, session_date)
         return acct
 
     # ---- evaluation / payouts --------------------------------------------
@@ -337,6 +370,7 @@ class RiskSentinel:
         acct.qualifying_days = 0
         acct.day_start_balance = acct.closed_balance
         result = {"account_id": account_id, "payout_number": acct.payouts_approved, "amount": amount}
+        self.log(account_id, "PAYOUT", amount=amount, number=acct.payouts_approved)
         grad = acct.rules.get("max_payouts_before_graduation")
         if grad and acct.payouts_approved >= grad:
             result["graduation"] = self.trigger_graduation(account_id)
@@ -356,13 +390,141 @@ class RiskSentinel:
                                f"Execution halted. Submit 50% cashout election (${(net or 0):,.2f} net) and decline the live account."),
         }
         acct.events.append(payload["operator_alert"])
+        self.log(account_id, "GRADUATION_CASHOUT", net=net)
         return payload
+
+    # ---- firm caps: park / unpark queue -----------------------------------
+    def log(self, aid: str, kind: str, **data) -> dict:
+        a = self.accounts.get(aid)
+        e = {"ts": _now(), "account": aid, "firm": a.firm if a else data.get("firm"), "kind": kind, **data}
+        self.ledger.append(e)
+        self.on_event({"type": "lifecycle", **e})
+        return e
+
+    def firm_cap(self, firm: str) -> int | None:
+        lim = (self.config.get("firm_limits") or {}).get(firm, {})
+        if "max_funded_accounts" in lim:
+            return lim["max_funded_accounts"]
+        a = next((x for x in self.accounts.values() if x.firm == firm), None)
+        return a.rules.get("max_funded_accounts") if a else None
+
+    def external_funded(self, firm: str) -> int:
+        """Funded accounts at this firm that exist but aren't in the app (still use up the firm's cap)."""
+        return int((self.config.get("firm_limits") or {}).get(firm, {}).get("funded_outside_app", 0))
+
+    @staticmethod
+    def occupies_slot(a: AccountState) -> bool:
+        return a.stage == "FUNDED" and not a.liquidated and a.status != "CLOSED"
+
+    def funded_count(self, firm: str) -> int:
+        return sum(1 for a in self.accounts.values() if a.firm == firm and self.occupies_slot(a)) + self.external_funded(firm)
+
+    def slots_free(self, firm: str) -> int | None:
+        cap = self.firm_cap(firm)
+        return None if cap is None else max(0, cap - self.funded_count(firm))
+
+    def park_threshold(self, a: AccountState) -> float | None:
+        tgt = a.rules.get("eval_target")
+        if not tgt:
+            return None
+        buf = (self.config.get("firm_limits") or {}).get(a.firm, {}).get("park_buffer_usd", a.rules.get("park_buffer_usd"))
+        return tgt - (buf if buf is not None else max(250.0, 0.1 * tgt))
+
+    def check_parking(self, aid: str) -> bool:
+        """Park an eval that's about to pass while the firm's funded slots are full: flatten + stop opening trades."""
+        a = self.accounts[aid]
+        if a.stage != "EVALUATION" or a.parked or a.liquidated or a.status == "CLOSED":
+            return False
+        thr = self.park_threshold(a)
+        if thr is None or self.slots_free(a.firm) != 0 or (a.equity - a.starting_balance) < thr:
+            return False
+        a.parked, a.parked_at, a.status = True, _now(), "PARKED"
+        self.pending_flatten.add(aid)
+        a.events.append(f"PARKED at +{a.equity - a.starting_balance:,.2f}: {a.rules.get('firm_name')} funded cap {self.firm_cap(a.firm)} full")
+        self.log(aid, "PARKED", profit=round(a.equity - a.starting_balance, 2), threshold=thr,
+                 queue_position=self.queue(a.firm).index(aid) + 1, cap=self.firm_cap(a.firm))
+        return True
+
+    def queue(self, firm: str) -> list[str]:
+        """Parked evals waiting for a funded slot, first-parked first."""
+        q = [a for a in self.accounts.values() if a.firm == firm and a.parked and not a.liquidated]
+        return [a.account_id for a in sorted(q, key=lambda x: (x.parked_at or "", x.account_id))]
+
+    def rebalance(self, firm: str) -> list[str]:
+        """A slot opened: release parked evals (oldest first) so they can trade to the target and pass."""
+        released = []
+        free = self.slots_free(firm)
+        pending_pass = sum(1 for a in self.accounts.values() if a.firm == firm and a.stage == "EVALUATION" and not a.parked
+                           and not a.liquidated and (self.park_threshold(a) or 1e18) <= a.equity - a.starting_balance)
+        n = None if free is None else max(0, free - pending_pass)
+        for aid in self.queue(firm)[: n if n is not None else None]:
+            a = self.accounts[aid]
+            a.parked, a.status = False, ("KILLED" if a.halted else "ACTIVE")
+            a.events.append("UNPARKED: funded slot available")
+            self.log(aid, "UNPARKED", slots_free=self.slots_free(firm))
+            released.append(aid)
+        return released
+
+    def _fail(self, a: AccountState) -> None:
+        a.failed_at = _now()
+        self.log(a.account_id, "FAILED", stage=a.stage, balance=round(a.equity, 2), mll=a.mll)
+        a.parked = False
+        if a.stage == "FUNDED":
+            self.rebalance(a.firm)
+
+    def promote(self, aid: str, session_date: str | None = None) -> None:
+        """Eval passed -> funded (firm issues a fresh funded account; update broker_account if the ID changes)."""
+        a = self.accounts[aid]
+        free = self.slots_free(a.firm)
+        if free == 0:
+            self.log(aid, "PASSED_OVER_CAP", note="passed while cap full: check the firm dashboard")
+        a.stage, a.passed_at = "FUNDED", _now()
+        start = a.starting_balance
+        a.closed_balance = a.day_start_balance = a.peak_equity = start
+        a.mll, a.mll_locked, a.best_day_profit, a.qualifying_days = start - a.rules["starting_drawdown"], False, 0.0, 0
+        a.parked, a.status = False, ("KILLED" if a.halted else "ACTIVE")
+        self.log(aid, "PASSED", session=session_date, note="now FUNDED; if the firm gave a new account ID, update broker_account")
+
+    def close_account(self, aid: str, reason: str = "closed by operator") -> None:
+        a = self.accounts[aid]
+        was_slot = self.occupies_slot(a)
+        a.status, a.halted = "CLOSED", True
+        self.log(aid, "CLOSED", reason=reason)
+        if was_slot:
+            self.rebalance(a.firm)
+
+    def firm_summary(self) -> dict:
+        out: dict[str, dict] = {}
+        for a in self.accounts.values():
+            f = out.setdefault(a.firm, {"firm_name": a.rules.get("firm_name"), "cap": self.firm_cap(a.firm),
+                                        "funded_outside_app": self.external_funded(a.firm), "funded": 0, "evals_trading": 0,
+                                        "parked": 0, "failed": 0, "passed": 0, "closed": 0, "accounts": 0, "cost": 0.0,
+                                        "paid_out": 0.0, "open_equity_pnl": 0.0})
+            f["accounts"] += 1
+            f["cost"] += a.cost
+            f["paid_out"] += a.total_paid_out
+            f["funded"] += 1 if self.occupies_slot(a) else 0
+            f["evals_trading"] += 1 if a.stage == "EVALUATION" and not a.parked and not a.liquidated and a.status != "CLOSED" else 0
+            f["parked"] += 1 if a.parked else 0
+            f["failed"] += 1 if a.liquidated else 0
+            f["passed"] += 1 if a.passed_at else 0
+            f["closed"] += 1 if a.status == "CLOSED" else 0
+            if not a.liquidated and a.status != "CLOSED":
+                f["open_equity_pnl"] += a.equity - a.starting_balance
+        for firm, f in out.items():
+            f["funded"] += f["funded_outside_app"]
+            f["slots_free"] = None if f["cap"] is None else max(0, f["cap"] - f["funded"])
+            f["queue"] = self.queue(firm)
+            f["net_cash"] = round(f["paid_out"] - f["cost"], 2)
+            for k in ("cost", "paid_out", "open_equity_pnl"):
+                f[k] = round(f[k], 2)
+        return out
 
     def kill(self, account_id: str | None = None) -> list[str]:
         ids = [account_id] if account_id else list(self.accounts)
         for aid in ids:
             a = self.accounts[aid]
-            if a.status in ("ACTIVE", "DAILY_LIMIT"):
+            if a.status in ("ACTIVE", "DAILY_LIMIT", "PARKED"):
                 a.status = "KILLED"
             a.halted = True
             a.events.append("KILL SWITCH engaged")
@@ -372,13 +534,15 @@ class RiskSentinel:
         a = self.accounts[account_id]
         if a.status != "KILLED":
             return False
-        a.status, a.halted = "ACTIVE", False
+        a.halted = False
+        a.status = "PARKED" if a.parked else "ACTIVE"
         return True
 
     def save(self, path: Path = STATE_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         data = {aid: {k: v for k, v in asdict(a).items() if k != "rules"} for aid, a in self.accounts.items()}
+        data["__ledger__"] = self.ledger[-5000:]
         tmp.write_text(json.dumps(data, indent=1))
         tmp.replace(path)
 
@@ -386,7 +550,8 @@ class RiskSentinel:
         if not path.exists():
             return False
         data = json.loads(path.read_text())
-        keep = ("broker", "broker_account", "role", "copy_ratio", "firm", "plan", "size", "contract", "verified", "starting_balance")
+        self.ledger = data.pop("__ledger__", [])
+        keep = ("broker", "broker_account", "role", "copy_ratio", "firm", "plan", "size", "contract", "verified", "starting_balance", "cost", "purchased_at")
         for aid, d in data.items():
             if aid in self.accounts:
                 cur = self.accounts[aid]

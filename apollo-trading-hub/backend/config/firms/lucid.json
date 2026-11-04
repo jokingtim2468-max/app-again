@@ -7,7 +7,7 @@
   ],
   "contract": "MGC",
   "verified": true,
-  "note": "LucidFlex 150K values supplied by the account owner.",
+  "note": "LucidFlex 150K values and the 5-funded-account cap supplied by the account owner.",
   "plans": {
     "FLEX": {
       "150K": {
@@ -50,5 +50,7 @@
         "cashout_opt_out_value_net": 2025
       }
     }
-  }
+  },
+  "max_funded_accounts": 5,
+  "park_buffer_usd": 500
 }

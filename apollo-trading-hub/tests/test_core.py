@@ -295,7 +295,8 @@ def test_consistency_pct_blocks_eval_pass():
     assert not s.eval_passed("T")           # best day 2,500 > 50% of 3,100
     for d in ("d3", "d4", "d5"):
         s.realize("T", 700); s.end_of_day("T", d)
-    assert s.eval_passed("T")
+    t = s.accounts["T"]                     # passed at d5 EOD -> promoted to a fresh funded account
+    assert t.stage == "FUNDED" and t.passed_at and t.closed_balance == 50000
 
 
 def test_mixed_fleet_copy_ratios_paper():
@@ -374,3 +375,70 @@ def test_every_firm_profile_loads():
             for sz in sizes:
                 r = resolve_rules(firm, plan, sz)
                 assert r["starting_drawdown"] > 0 and r["drawdown_type"] in ("END_OF_DAY", "INTRADAY", "STATIC")
+
+
+# ---------------- firm caps: park / unpark queue ----------------
+def _lucid_fleet(n_funded=5, n_eval=2):
+    acc = [dict(M, stage="FUNDED", cost=0)]
+    acc += [{"id": f"F{i}", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "tradovate", "stage": "FUNDED"} for i in range(1, n_funded)]
+    acc += [{"id": f"E{i}", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "tradovate", "cost": 150} for i in range(1, n_eval + 1)]
+    return RiskSentinel({"accounts": acc})
+
+
+def test_eval_parks_when_lucid_funded_cap_full_and_unparks_on_failure():
+    s = _lucid_fleet()
+    assert s.firm_cap("lucid") == 5 and s.slots_free("lucid") == 0
+    s.realize("E1", 8000)                      # below 9,000 target - 500 buffer: keeps trading
+    assert not s.accounts["E1"].parked
+    s.mark("E1", 600)                           # equity profit 8,600 >= 8,500 -> parked + flatten requested
+    e1 = s.accounts["E1"]
+    assert e1.parked and e1.status == "PARKED" and "E1" in s.pending_flatten
+    v = s.validate_order("E1", "EVALUATION", 1, "MGC")
+    assert not v["approved"] and "parked" in v["reasons"][-1] and v["approved_qty"] == 0
+    s.mark("E1", 0); s.realize("E2", 8600)      # second eval queues behind the first
+    assert s.queue("lucid") == ["E1", "E2"]
+    s.mark("F1", -4500)                         # a funded account blows its MLL -> slot opens
+    assert s.accounts["F1"].liquidated and s.slots_free("lucid") == 1
+    assert not s.accounts["E1"].parked and s.accounts["E1"].status == "ACTIVE"   # oldest parked released
+    assert s.accounts["E2"].parked                                                # only one slot
+    kinds = [e["kind"] for e in s.ledger]
+    assert kinds.count("PARKED") == 2 and "FAILED" in kinds and "UNPARKED" in kinds
+
+
+def test_released_eval_passes_and_fills_slot():
+    s = _lucid_fleet()
+    s.realize("E1", 8600); s.mark("F1", -4500)
+    s.realize("E1", 900); s.end_of_day("E1", "2025-02-03")    # 9,500 profit, best day 9,500 > 3,600 cap
+    assert s.accounts["E1"].stage == "EVALUATION"             # Lucid consistency cap still enforced
+    s2 = _lucid_fleet()
+    s2.mark("F1", -4500)                                        # slot free from the start
+    for d in range(1, 4):
+        s2.realize("E1", 3100); s2.end_of_day("E1", f"2025-02-0{d}")
+    e = s2.accounts["E1"]
+    assert e.stage == "FUNDED" and s2.slots_free("lucid") == 0
+    s2.realize("E2", 8800)
+    assert s2.accounts["E2"].parked                            # cap full again -> next eval parks
+
+
+def test_funded_outside_app_counts_and_firm_summary():
+    s = RiskSentinel({"accounts": [dict(M), {"id": "E1", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K",
+                                              "broker": "tradovate", "cost": 140}],
+                      "firm_limits": {"lucid": {"funded_outside_app": 5}}})
+    s.realize("E1", 8700)
+    assert s.accounts["E1"].parked              # 5 funded elsewhere fill the cap
+    f = s.firm_summary()["lucid"]
+    assert f["funded"] == 5 and f["slots_free"] == 0 and f["parked"] == 1 and f["cost"] == 140 and f["queue"] == ["E1"]
+
+
+def test_closing_cashout_account_frees_slot():
+    s = _lucid_fleet()
+    s.realize("E1", 8800)
+    assert s.accounts["E1"].parked
+    s.close_account("F2", "cashout done")
+    assert not s.accounts["E1"].parked
+
+
+def test_ledger_persists(tmp_path):
+    s = _lucid_fleet(); s.realize("E1", 8800); s.save(tmp_path / "st.json")
+    s2 = _lucid_fleet(); s2.load(tmp_path / "st.json")
+    assert s2.accounts["E1"].parked and any(e["kind"] == "PARKED" for e in s2.ledger)

@@ -85,6 +85,21 @@ MLL locks, daily loss limits, profit targets, $ or % consistency, contract caps,
 your dashboard and set `verified: true`. Until then paper trading and backtests work, but **live opening orders are refused**.
 Backtests can use any profile (*Firm rules* selector / `firm, plan, size` params).
 
+## Firm caps, the eval queue and lifecycle tracking
+Firms limit how many funded accounts you may hold (Lucid: **5**). Apollo tracks every account at every firm and enforces it:
+- **Park:** while a firm's funded slots are full, an eval that reaches `target - park buffer` (Lucid: $8,500 of $9,000) is
+  **flattened and parked**, so it can't pass. Parked accounts take no new copy trades. Evals further from the target keep trading.
+- **Queue:** parked evals wait first-parked-first (`PARKED #1`, `#2`…).
+- **Release:** when a funded account **fails** (hits its MLL) or is **closed** (cashout done / cancelled), the slot opens and the
+  oldest parked eval is released to trade to the target. If it passes (at the 17:00 ET close, consistency rules included) it
+  becomes **funded** and takes the slot, and the next eval that nears its target parks again.
+- Set caps per firm in the Account Manager (*max funded*). *Outside app* counts funded accounts you own at that firm but
+  don't run here, so they still use up the cap. *Park buffer* sets how far below the target to stop.
+- **Ledger:** every PARKED / UNPARKED / PASSED / FAILED / PAYOUT / CLOSED / CASHOUT event is recorded (`/api/fleet/ledger`),
+  and the fleet deck shows per firm: funded x/cap, evals trading, parked, passed, failed, the queue, and money **spent vs paid
+  out** (enter each account's cost and purchase date).
+- When the firm issues the funded account under a new ID, update that account's *Broker account* in the Account Manager.
+
 ## Safety
 - **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
 - Broker credentials are **env vars only**, never in `fleet.json`.

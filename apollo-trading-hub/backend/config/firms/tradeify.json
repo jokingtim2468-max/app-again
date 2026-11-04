@@ -45,5 +45,7 @@
         "cashout_opt_out_value_net": null
       }
     }
-  }
+  },
+  "max_funded_accounts": null,
+  "park_buffer_usd": null
 }
