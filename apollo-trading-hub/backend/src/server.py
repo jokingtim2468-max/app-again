@@ -31,6 +31,8 @@ subscribers: set[asyncio.Queue] = set()
 
 def _emit(e: dict) -> None:
     e.setdefault("ts", datetime.now(ET).isoformat())
+    if "bots" in globals():
+        bots.on_event(e)
     for q in list(subscribers):
         if q.full():
             q.get_nowait()
@@ -148,7 +150,9 @@ async def lifespan(app: FastAPI):
     global bridge_task
     bridge_task = asyncio.create_task(bridge.run())
     tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), payout_watch(), balance_snapshots())]
+    await bots.start()
     yield
+    await bots.stop()
     for t in tasks:
         t.cancel()
     sentinel.save()
@@ -710,6 +714,64 @@ async def ws_events(ws: WebSocket):
         pass
     finally:
         subscribers.discard(q)
+
+
+# ---------------- Telegram / Discord bots ----------------
+from .bots import settings as bot_settings  # noqa: E402
+from .bots.manager import BotManager  # noqa: E402
+
+
+async def _bot_kill(account):
+    return await kill(KillReq(account_id=account))
+
+
+async def _bot_flatten():
+    return await flatten_all()
+
+
+bots = BotManager({
+    "status": lambda: fleet_status(),
+    "payouts": lambda: payouts_overview(),
+    "outcomes": lambda: outcomes(),
+    "profit": lambda: profit_report(),
+    "kill": _bot_kill,
+    "flatten": _bot_flatten,
+    "resume": lambda a: resume(a),
+    "requested": lambda a, amt=None: payout_requested(a, PayoutAmt(amount=amt)),
+    "paid": lambda a, amt=None: payout_paid(a, PayoutAmt(amount=amt)),
+    "rejected": lambda a: payout_rejected(a, PayoutAmt()),
+})
+
+
+@app.get("/api/settings/bots")
+def get_bot_settings():
+    return {"settings": bot_settings.mask(bot_settings.load()), "status": bots.status(),
+            "notify_kinds": bot_settings.NOTIFY_KINDS, "commands": bots.engine.menu(),
+            "variables": sorted(bots.engine.variables())}
+
+
+@app.put("/api/settings/bots")
+async def put_bot_settings(body: dict):
+    """Save settings and relaunch the bots (re-registers custom commands in Telegram's menu / Discord slash list)."""
+    try:
+        bot_settings.save(body)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    await bots.start()
+    await asyncio.sleep(2)
+    return get_bot_settings()
+
+
+@app.post("/api/settings/bots/test")
+async def test_bots(body: dict | None = None):
+    """Run a command locally (preview) and/or send a test alert to every enabled bot."""
+    from .bots.commands import Ctx
+    cmd = (body or {}).get("command")
+    out = {"preview": await bots.engine.run(cmd, Ctx("preview", "app", True))} if cmd else {}
+    if (body or {}).get("send_alert"):
+        await bots.broadcast("✅ Apollo test alert: bots are connected.")
+        out["sent"] = list(bots.bots)
+    return {**out, "status": bots.status()}
 
 
 def main():

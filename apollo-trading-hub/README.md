@@ -110,6 +110,19 @@ Everything is journaled to `backend/state/apollo.db` (SQLite, git-ignored; `APOL
   by month, firm and account, plus the fleet equity curve.
 - **CSV export** for every log: `/api/logs/<balances|fills|payouts|daily_pnl|costs|events>/export.csv?account=&start=&end=`.
 
+## Telegram & Discord bots
+Set up in **Settings** (⚙ in the left rail). Tokens are stored only in `backend/state/settings.json` (git-ignored, owner-only
+permissions) and are always masked in the app. Bots start when Apollo launches and re-register every command each time:
+Telegram's "/" menu and Discord slash commands (guild-scoped = instant if you set the server ID). Discord also takes `!status`
+style text commands (enable the *Message Content* intent).
+- **Read commands:** `/status /fleet /ready /payouts /outcomes /profit /pnl /help`, open to your *Allowed users*.
+- **Control commands 🔒:** `/kill [account] /flatten /resume <acct> /requested <acct> [amt] /paid <acct> [amt] /rejected <acct>`,
+  only for *Control users* (the bot replies with your ID so you can add it).
+- **Custom commands:** *template* text with live values (`{ready_now_net}`, `{blown}`, `{pass_rate}`, `{fleet_day_pnl}`…) or an
+  *alias* that runs several commands (`status; ready; outcomes`). Built-in examples: `/gm`, `/money`.
+- **Alerts** (toggle each): app launched, payout ready, eval passed, account blown, parked/released, target hit, daily loss
+  limit, payout recorded, kill switch, graduation, order routing errors.
+
 ## Safety
 - **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
 - Broker credentials are **env vars only**, never in `fleet.json`.

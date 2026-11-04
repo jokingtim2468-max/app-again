@@ -19,10 +19,10 @@ export default function TopNav({ route, go }: { route: Route; go: (r: Route) => 
     <header style={{ gridColumn: 2, display: 'flex', alignItems: 'center', gap: 14, padding: '0 12px', borderBottom: '1px solid var(--line)', background: '#0C0E14' }}>
       <strong style={{ letterSpacing: '.18em', fontSize: 11 }}>APOLLO<span className="mut"> TRADING</span></strong>
       <div role="tablist" className="row" style={{ gap: 2 }}>
-        {(['workspace', 'builder'] as Route[]).map((r) => (
+        {(['workspace', 'builder', 'settings'] as Route[]).map((r) => (
           <button key={r} role="tab" aria-selected={route === r} onClick={() => go(r)} className="ghost"
             style={{ color: route === r ? 'var(--text)' : undefined, borderBottom: route === r ? '2px solid var(--accent)' : '2px solid transparent', borderRadius: 0, height: 44 }}>
-            {r === 'workspace' ? 'Workspace' : 'Builder'}
+            {r === 'workspace' ? 'Workspace' : r === 'builder' ? 'Builder' : 'Settings'}
           </button>
         ))}
       </div>

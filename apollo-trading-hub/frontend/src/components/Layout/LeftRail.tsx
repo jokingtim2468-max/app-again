@@ -1,9 +1,10 @@
 import AppLogo from '../UI/AppLogo';
 
-export type Route = 'workspace' | 'builder';
+export type Route = 'workspace' | 'builder' | 'settings';
 const items: { id: Route; label: string; glyph: string }[] = [
   { id: 'workspace', label: 'Workspace', glyph: '▦' },
   { id: 'builder', label: 'Builder (Layout Studio)', glyph: '⊞' },
+  { id: 'settings', label: 'Settings (bots, alerts, commands)', glyph: '⚙' },
 ];
 
 export default function LeftRail({ route, go }: { route: Route; go: (r: Route) => void }) {
