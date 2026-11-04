@@ -109,6 +109,90 @@ class Journal:
             w.writeheader(); w.writerows(rows)
         return buf.getvalue()
 
+    def outcome_stats(self, specs: list[dict] | None = None, start: str | None = None, end: str | None = None) -> dict:
+        """Account outcomes from the permanent event log: passes, blows, target/daily-limit hits, payouts, ROI."""
+        ev = self.query("events", start=start, end=end, limit=1_000_000)[::-1]
+        pays = [p for p in self.query("payouts", start=start, end=end, limit=1_000_000) if p["event"] == "PAID"]
+        costs = self.query("costs", start=start, end=end, limit=1_000_000)
+        days = self.query("daily_pnl", start=start, end=end, limit=1_000_000)
+        first_day: dict[str, str] = {}
+        for d in days:
+            first_day[d["account"]] = min(first_day.get(d["account"], d["session"]), d["session"])
+        bought = {s["id"]: s.get("purchased_at") for s in (specs or [])}
+        firms: dict[str, dict] = {}
+
+        def F(f):
+            return firms.setdefault(f or "unknown", {"accounts": set(), "evals": set(), "funded_seen": set(), "passed": set(),
+                                                     "target_hit": set(), "blown_eval": set(), "blown_funded": set(),
+                                                     "daily_limit_hits": 0, "daily_limit_accounts": set(), "parked": set(),
+                                                     "maxed_out": set(), "graduated": set(), "closed": set(),
+                                                     "payouts": 0, "payouts_gross": 0.0, "payouts_net": 0.0, "paid_accounts": set(),
+                                                     "costs": 0.0, "days_to_pass": []})
+        for s in specs or []:
+            f = F(s.get("firm"))
+            f["accounts"].add(s["id"])
+            (f["funded_seen"] if s.get("stage") == "FUNDED" else f["evals"]).add(s["id"])
+        for e in ev:
+            f, a, k = F(e["firm"]), e["account"], e["kind"]
+            f["accounts"].add(a)
+            data = json.loads(e["data"] or "{}")
+            if k == "PASSED":
+                f["passed"].add(a); f["funded_seen"].add(a); f["evals"].add(a)
+                start_d = bought.get(a) or first_day.get(a)
+                if start_d:
+                    try:
+                        f["days_to_pass"].append((datetime.fromisoformat(e["ts"][:10]) - datetime.fromisoformat(start_d[:10])).days)
+                    except ValueError:
+                        pass
+            elif k == "TARGET_HIT":
+                f["target_hit"].add(a); f["evals"].add(a)
+            elif k == "FAILED":
+                (f["blown_funded"] if data.get("stage") == "FUNDED" else f["blown_eval"]).add(a)
+            elif k == "DAILY_LIMIT_HIT":
+                f["daily_limit_hits"] += 1; f["daily_limit_accounts"].add(a)
+            elif k == "PARKED":
+                f["parked"].add(a)
+            elif k == "GRADUATION_CASHOUT":
+                f["graduated"].add(a)
+            elif k == "CLOSED":
+                f["closed"].add(a)
+                if "max" in str(data.get("reason", "")):
+                    f["maxed_out"].add(a)
+        for p in pays:
+            f = F(p["firm"]); f["payouts"] += 1; f["payouts_gross"] += p["gross"]; f["payouts_net"] += p["net_to_you"]
+            f["paid_accounts"].add(p["account"])
+        for c in costs:
+            F(c["firm"])["costs"] += c["amount"]
+
+        def finish(f):
+            n = lambda k: len(f[k])
+            evals = n("evals")
+            resolved = n("passed") + n("blown_eval")
+            funded = n("funded_seen")
+            out = {"accounts": n("accounts"), "evals_bought": evals, "evals_passed": n("passed"),
+                   "evals_hit_target": n("target_hit"), "evals_blown": n("blown_eval"),
+                   "pass_rate": round(n("passed") / resolved, 3) if resolved else None,
+                   "funded_accounts": funded, "funded_blown": n("blown_funded"),
+                   "funded_blow_rate": round(n("blown_funded") / funded, 3) if funded else None,
+                   "total_blown": len(f["blown_eval"] | f["blown_funded"]),
+                   "daily_limit_hits": f["daily_limit_hits"], "accounts_hit_daily_limit": n("daily_limit_accounts"),
+                   "ever_parked": n("parked"), "maxed_out": n("maxed_out"), "graduated": n("graduated"), "closed": n("closed"),
+                   "payouts": f["payouts"], "accounts_paid": n("paid_accounts"),
+                   "avg_payouts_per_funded": round(f["payouts"] / funded, 2) if funded else None,
+                   "payouts_gross": round(f["payouts_gross"], 2), "payouts_net": round(f["payouts_net"], 2),
+                   "costs": round(f["costs"], 2), "real_profit": round(f["payouts_net"] - f["costs"], 2),
+                   "return_per_dollar": round(f["payouts_net"] / f["costs"], 2) if f["costs"] else None,
+                   "cost_per_funded": round(f["costs"] / n("passed"), 2) if n("passed") else None,
+                   "avg_days_to_pass": round(sum(f["days_to_pass"]) / len(f["days_to_pass"]), 1) if f["days_to_pass"] else None}
+            return out
+        by_firm = {k: finish(v) for k, v in firms.items()}
+        merged = {k: set() if isinstance(v, set) else [] if isinstance(v, list) else 0 for k, v in F("__fleet__").items()}
+        firms.pop("__fleet__")
+        for v in firms.values():
+            for k, x in v.items():
+                merged[k] = merged[k] | x if isinstance(x, set) else merged[k] + x
+        return {"fleet": finish(merged), "by_firm": by_firm}
+
     def profit_report(self, start: str | None = None, end: str | None = None) -> dict:
         """Trading P&L (sim balances) vs real money (payouts received minus costs), by account, firm, month."""
         days = self.query("daily_pnl", start=start, end=end, limit=100000)

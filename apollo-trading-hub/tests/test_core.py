@@ -571,3 +571,29 @@ def test_journal_records_everything(tmp_path):
     assert rep["fleet_curve"][-1]["cumulative"] == 1900.0 and {"2026-10", "2026-11"} <= set(rep["by_month"])
     assert "account,firm" in j.csv("payouts").splitlines()[0] or "ts,account" in j.csv("payouts").splitlines()[0]
     assert a.total_net_received == 900.0
+
+
+def test_outcome_stats(tmp_path):
+    from backend.src.journal import Journal
+    j = Journal(tmp_path / "o.db")
+    specs = [dict(M, stage="FUNDED", cost=0), {"id": "F1", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "paper", "stage": "FUNDED"},
+             {"id": "E1", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "paper", "cost": 150, "purchased_at": "2026-11-01"},
+             {"id": "E2", "role": "copy", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "paper", "cost": 150},
+             {"id": "B1", "role": "copy", "firm": "bulenox", "plan": "EOD", "size": "50K", "broker": "paper", "cost": 100}]
+    s = RiskSentinel({"accounts": specs}); s.journal = j
+    for sp in specs:
+        if sp.get("cost"):
+            j.cost(sp["id"], sp["firm"], "purchase", sp["cost"])
+    for d in range(1, 4):                           # E1: 3 x $3,100 -> hits target, passes (40% consistency ok)
+        s.realize("E1", 3100); s.end_of_day("E1", f"2026-11-0{d}")
+    s.mark("E2", -4500)                             # E2 blown in eval
+    s.mark("F1", -4500)                             # funded blown
+    s.mark("B1", -1200); s.mark("B1", 0)            # Bulenox daily loss limit hit
+    _ = [s.approve_payout("M", 1000) for _ in range(2)]
+    o = j.outcome_stats(s.specs)
+    L = o["by_firm"]["lucid"]
+    assert L["evals_passed"] == 1 and L["evals_hit_target"] == 1 and L["evals_blown"] == 1 and L["pass_rate"] == 0.5
+    assert L["funded_blown"] == 1 and L["total_blown"] == 2 and L["payouts"] == 2 and L["payouts_net"] == 1800.0
+    assert L["costs"] == 300 and L["real_profit"] == 1500.0 and L["return_per_dollar"] == 6.0 and L["cost_per_funded"] == 300.0
+    assert o["by_firm"]["bulenox"]["daily_limit_hits"] == 1 and o["by_firm"]["bulenox"]["accounts_hit_daily_limit"] == 1
+    assert o["fleet"]["total_blown"] == 2 and o["fleet"]["evals_passed"] == 1 and o["fleet"]["daily_limit_hits"] == 1

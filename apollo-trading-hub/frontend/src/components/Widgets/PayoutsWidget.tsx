@@ -10,11 +10,61 @@ interface Row {
 }
 interface Data { accounts: Row[]; firms: Record<string, { firm_name: string; ready_now_net: number; month_ceiling_net: number; uncapped_accounts: number; paid_out: number }>; totals: Record<string, number> }
 
+interface Outcome {
+  accounts: number; evals_bought: number; evals_passed: number; evals_hit_target: number; evals_blown: number; pass_rate: number | null;
+  funded_accounts: number; funded_blown: number; funded_blow_rate: number | null; total_blown: number; daily_limit_hits: number;
+  accounts_hit_daily_limit: number; ever_parked: number; maxed_out: number; graduated: number; closed: number; payouts: number;
+  accounts_paid: number; avg_payouts_per_funded: number | null; payouts_net: number; costs: number; real_profit: number;
+  return_per_dollar: number | null; cost_per_funded: number | null; avg_days_to_pass: number | null;
+}
+interface Outcomes { fleet: Outcome; by_firm: Record<string, Outcome>; now: Record<string, { evals_trading: number; funded_active: number; parked_now: number; blown_now: number }> }
+const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`);
+
+function OutcomeStats({ o, firmNames }: { o: Outcomes; firmNames: Record<string, string> }) {
+  const f = o.fleet;
+  const tiles: [string, string, string, string][] = [
+    ['Evals passed', `${f.evals_passed}`, 'pos', `pass rate ${pct(f.pass_rate)}`],
+    ['Hit profit target', `${f.evals_hit_target}`, 'pos', `${f.ever_parked} parked at cap`],
+    ['Accounts blown', `${f.total_blown}`, f.total_blown ? 'neg' : '', `${f.evals_blown} eval · ${f.funded_blown} funded`],
+    ['Daily loss limit hits', `${f.daily_limit_hits}`, f.daily_limit_hits ? 'warn' : '', `${f.accounts_hit_daily_limit} account(s)`],
+    ['Payouts received', `${f.payouts}`, 'pos', `${f.accounts_paid} accounts · avg ${f.avg_payouts_per_funded ?? '—'}/funded`],
+    ['Maxed out / graduated', `${f.maxed_out + f.graduated}`, '', `${f.closed} closed`],
+    ['Return per $1 spent', f.return_per_dollar == null ? '—' : `$${f.return_per_dollar.toFixed(2)}`, (f.return_per_dollar ?? 0) >= 1 ? 'pos' : 'neg', `cost per funded ${f.cost_per_funded == null ? '—' : usd(f.cost_per_funded, 0)}`],
+    ['Avg days to pass', f.avg_days_to_pass == null ? '—' : `${f.avg_days_to_pass}`, '', `real profit ${usd(f.real_profit, 0)}`],
+  ];
+  return (
+    <div style={{ padding: 8, borderBottom: '1px solid var(--line)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6 }}>
+        {tiles.map(([l, v, c, sub]) => (
+          <div key={l} style={{ border: '1px solid var(--line)', borderRadius: 6, padding: '5px 9px' }}>
+            <p className="h">{l}</p><div className={`mono ${c}`} style={{ fontSize: 17 }}>{v}</div>
+            <div className="mut" style={{ fontSize: 10.5 }}>{sub}</div>
+          </div>))}
+      </div>
+      {Object.keys(o.by_firm).length > 0 && (
+        <table style={{ marginTop: 6 }}>
+          <thead><tr><th>Firm</th><th>Evals bought</th><th>Hit target</th><th>Passed</th><th>Pass rate</th><th>Evals blown</th><th>Funded</th><th>Funded blown</th><th>Daily-limit hits</th><th>Parked</th><th>Payouts</th><th>Net received</th><th>Costs</th><th>Real profit</th><th>Now: trading / funded / parked / blown</th></tr></thead>
+          <tbody>{Object.entries(o.by_firm).map(([k, x]) => { const n = o.now[k]; return (
+            <tr key={k}><td>{firmNames[k] ?? k}</td><td>{x.evals_bought}</td><td className="pos">{x.evals_hit_target}</td><td className="pos">{x.evals_passed}</td><td>{pct(x.pass_rate)}</td>
+              <td className={x.evals_blown ? 'neg' : ''}>{x.evals_blown}</td><td>{x.funded_accounts}</td><td className={x.funded_blown ? 'neg' : ''}>{x.funded_blown} <span className="mut">({pct(x.funded_blow_rate)})</span></td>
+              <td className={x.daily_limit_hits ? 'warn' : ''}>{x.daily_limit_hits}</td><td>{x.ever_parked}</td><td>{x.payouts}</td><td className="pos">{usd(x.payouts_net, 0)}</td>
+              <td className="neg">{usd(x.costs, 0)}</td><td className={x.real_profit >= 0 ? 'pos' : 'neg'}><b>{usd(x.real_profit, 0)}</b></td>
+              <td className="mono mut">{n ? `${n.evals_trading} / ${n.funded_active} / ${n.parked_now} / ${n.blown_now}` : '—'}</td></tr>); })}</tbody>
+        </table>)}
+    </div>
+  );
+}
+
 export default function PayoutsWidget() {
+  const [oc, setOc] = useState<Outcomes | null>(null);
+  const [showOc, setShowOc] = useState(true);
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState(''); const [msg, setMsg] = useState('');
   const [notifyOn, setNotifyOn] = useState(typeof Notification !== 'undefined' && Notification.permission === 'granted');
-  const load = () => api<Data>('/api/payouts').then((x) => { setD(x); setErr(''); }).catch((e) => setErr(String(e)));
+  const load = () => {
+    api<Outcomes>('/api/reports/outcomes').then(setOc).catch(() => undefined);
+    return api<Data>('/api/payouts').then((x) => { setD(x); setErr(''); }).catch((e) => setErr(String(e)));
+  };
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
   useEffect(() => onEvent((e) => {
     if (e.type !== 'payout_ready') return;
@@ -31,7 +81,7 @@ export default function PayoutsWidget() {
     if (r.dashboard_url) window.open(r.dashboard_url, '_blank', 'noopener');
   };
   if (!d) return <div className="empty">{err || 'Loading payouts…'}</div>;
-  const funded = d.accounts.filter((r) => r.stage === 'FUNDED' && r.status !== 'CLOSED');
+  const funded = d.accounts.filter((r) => r.stage === 'FUNDED' && r.status !== 'CLOSED' && r.status !== 'LIQUIDATED');
   const ready = funded.filter((r) => r.eligible);
 
   return (
@@ -45,6 +95,10 @@ export default function PayoutsWidget() {
         {typeof Notification !== 'undefined' && !notifyOn && <button onClick={() => Notification.requestPermission().then((p) => setNotifyOn(p === 'granted'))}>🔔 Enable payout alerts</button>}
         {notifyOn && <span className="pill pos"><span className="dot" />alerts on</span>}
       </div>
+      <div className="row" style={{ padding: '2px 8px', borderBottom: '1px solid var(--line)' }}>
+        <button className="ghost" onClick={() => setShowOc((v) => !v)}>{showOc ? '▾' : '▸'} Account outcomes (all time)</button>
+      </div>
+      {showOc && oc && <OutcomeStats o={oc} firmNames={Object.fromEntries(Object.entries(d.firms).map(([k, v]) => [k, v.firm_name]))} />}
       {msg && <div className="pos" style={{ padding: '4px 10px', fontSize: 11.5 }}>{msg}</div>}
       {err && <div className="neg" style={{ padding: '4px 10px' }}>{err}</div>}
       <div style={{ flex: 1, overflow: 'auto' }}>

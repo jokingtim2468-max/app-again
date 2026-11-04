@@ -416,6 +416,21 @@ def profit_report(start: str | None = None, end: str | None = None):
     return rep
 
 
+@app.get("/api/reports/outcomes")
+def outcomes(start: str | None = None, end: str | None = None):
+    """How many evals passed / hit target / blew up, funded blows, daily-limit hits, payouts, ROI: per firm + fleet."""
+    rep = journal.outcome_stats(sentinel.specs, start, end)
+    live = {}
+    for a in sentinel.accounts.values():
+        b = live.setdefault(a.firm, {"evals_trading": 0, "funded_active": 0, "parked_now": 0, "blown_now": 0})
+        b["evals_trading"] += a.stage == "EVALUATION" and not a.liquidated and not a.parked and a.status != "CLOSED"
+        b["funded_active"] += a.stage == "FUNDED" and not a.liquidated and a.status != "CLOSED"
+        b["parked_now"] += a.parked
+        b["blown_now"] += a.liquidated
+    rep["now"] = live
+    return rep
+
+
 class CostReq(BaseModel):
     account: str
     kind: str = "reset"

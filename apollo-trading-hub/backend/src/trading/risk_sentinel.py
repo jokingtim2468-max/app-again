@@ -125,6 +125,7 @@ class AccountState:
     last_payout_date: str | None = None
     payout_pending: float = 0.0                    # requested at the firm, awaiting approval
     total_net_received: float = 0.0                # take-home after the firm's split
+    target_hit: bool = False                       # eval reached its profit target at least once
     firm: str = "lucid"
     plan: str = "FLEX"
     size: str = "150K"
@@ -275,8 +276,16 @@ class RiskSentinel:
             if acct.status == "ACTIVE":
                 acct.status = "DAILY_LIMIT"
             acct.events.append(f"DAILY LOSS LIMIT: day PnL {acct.day_pnl:.2f} <= -{dll}")
+            self.log(account_id, "DAILY_LIMIT_HIT", day_pnl=round(acct.day_pnl, 2), limit=dll, stage=acct.stage)
+        self._check_target(acct)
         self.check_parking(account_id)
         return acct
+
+    def _check_target(self, a: AccountState) -> None:
+        tgt = a.rules.get("eval_target")
+        if a.stage == "EVALUATION" and tgt and not a.target_hit and a.equity - a.starting_balance >= tgt:
+            a.target_hit = True
+            self.log(a.account_id, "TARGET_HIT", profit=round(a.equity - a.starting_balance, 2), target=tgt)
 
     def _trail(self, acct: AccountState, level: float) -> None:
         r = acct.rules
@@ -319,6 +328,7 @@ class RiskSentinel:
         if acct.equity <= acct.mll and not acct.liquidated:
             acct.liquidated, acct.status = True, "LIQUIDATED"
             self._fail(acct)
+        self._check_target(acct)
         self.check_parking(account_id)
         return acct
 
@@ -546,7 +556,7 @@ class RiskSentinel:
         a.closed_balance = a.day_start_balance = a.peak_equity = start
         a.mll, a.mll_locked, a.best_day_profit, a.qualifying_days = start - a.rules["starting_drawdown"], False, 0.0, 0
         a.cycle_start_balance, a.cycle_day_pnls = start, []
-        a.parked, a.status = False, ("KILLED" if a.halted else "ACTIVE")
+        a.parked, a.status, a.target_hit = False, ("KILLED" if a.halted else "ACTIVE"), False
         self.log(aid, "PASSED", session=session_date, note="now FUNDED; if the firm gave a new account ID, update broker_account")
 
     def close_account(self, aid: str, reason: str = "closed by operator") -> None:
