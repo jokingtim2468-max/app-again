@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 LAYOUT_FILE = Path(os.getenv("APOLLO_LAYOUT_FILE", Path.home() / ".apollo-trading-hub" / "layouts.json"))
-WIDGET_TYPES = {"widget-chart", "widget-dom", "widget-fleet", "widget-tape", "widget-backtest", "widget-terminal"}
+WIDGET_TYPES = {"widget-chart", "widget-dom", "widget-fleet", "widget-tape", "widget-backtest", "widget-terminal", "widget-accounts"}
 _lock = threading.Lock()
 
 
@@ -17,6 +17,10 @@ def _w(i, t, x, y, w, h, settings=None):
 
 
 PRESETS = {
+    "Account Setup": [
+        _w("accounts-1", "widget-accounts", 0, 0, 12, 14),
+        _w("fleet-1", "widget-fleet", 0, 14, 12, 8, {"compact": False}),
+    ],
     "Execution Focus": [
         _w("chart-1", "widget-chart", 0, 0, 8, 14, {"timeframe": "1m"}),
         _w("dom-1", "widget-dom", 8, 0, 4, 14),

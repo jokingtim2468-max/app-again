@@ -61,9 +61,33 @@ Pine `request.security` on another timeframe/symbol, Pine libraries/UDTs. Pine s
 - MT5 gold is usually the broker's **spot/CFD XAUUSD**, not CME MGC. It tracks MGC closely, but futures basis and sessions differ.
   PnL is always computed with MGC economics ($10/pt per micro).
 
+## Every account, every platform
+Accounts live in `backend/config/fleet.json` (edit in the **Account Manager** widget / *Account Setup* layout). Each account has
+its own firm rules, platform, symbol and copy ratio; one is the master, the rest copy it.
+
+| Platform (`broker`) | Reaches | Credentials (env only) |
+|---|---|---|
+| `tradovate` | Lucid, Apex, MFFU, Tradeify, Take Profit Trader, Topstep (Tradovate) | `TRADOVATE_USER/PASS/CID/SEC[/APP_ID/DEVICE_ID/ENV]` |
+| `projectx` | TopstepX and other ProjectX-powered firms (set `PROJECTX_URL` per firm) | `PROJECTX_USER`, `PROJECTX_API_KEY` |
+| `ninjatrader` / `rithmic` | anything NinjaTrader 8 connects to: Rithmic (Apex, Bulenox, TPT…), CQG, Tradovate, IB, Kinetick, via the ATI | enable *AT Interface* in NT8; `NT8_DIR` |
+| `mt5` | FTMO, FundedNext, The5ers, any MT5 broker (orders need Windows Python) | logged-in MT5 terminal (`APOLLO_MT5_*`) |
+| `ibkr` | Interactive Brokers (TWS / IB Gateway, `pip install ib_async`) | `IBKR_HOST/PORT/CLIENT_ID` |
+| `paper` | local simulation | — |
+
+Second login on the same platform: set the account's `login` to `_2` and use `TRADOVATE_USER_2`, etc.
+CFD accounts (`contract: XAUUSD`) copy in lots: `copy_ratio 0.1` means 10 MGC on the master equals 1.0 lot.
+Direct Rithmic R|API and cTrader Open API need vendor approval/OAuth apps, so Rithmic goes through NinjaTrader; cTrader is not wired yet.
+
+**Firm rules** (`backend/config/firms/*.json`): Lucid (owner-verified), Topstep, Apex, MyFundedFutures, Take Profit Trader,
+Tradeify, Bulenox, FTMO, FundedNext, The5ers, plus *custom*. The engine handles END_OF_DAY, INTRADAY and STATIC drawdown,
+MLL locks, daily loss limits, profit targets, $ or % consistency, contract caps, funded scaling tiers, payouts and graduation.
+⚠ Every profile except Lucid is a **template marked `verified: false`**. Firms change rules often: check each number against
+your dashboard and set `verified: true`. Until then paper trading and backtests work, but **live opening orders are refused**.
+Backtests can use any profile (*Firm rules* selector / `firm, plan, size` params).
+
 ## Safety
 - **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
-- Tradovate credentials are **env vars only** (`TRADOVATE_*`), never in `fleet.json`.
+- Broker credentials are **env vars only**, never in `fleet.json`.
 - Kill switch (top bar or per account) flattens and halts routing; killed accounts can be resumed, cashout/liquidated accounts cannot.
 - DOM brackets are server-side emulated: the backend watches last price and flattens the fleet at TP/SL. They do not exist at the broker,
   so if the backend stops, there is no resting stop. Keep that in mind on live.

@@ -48,6 +48,9 @@ class BacktestConfig:
     params: dict | None = None      # passed to the user's strategy
     contract: str = "MGC"
     mt5_model: str = "every_tick_real"
+    firm: str | None = None
+    plan: str | None = None
+    size: str | None = None
     tick_csv: str | None = None  # CSV with timestamp,price (ET). Overrides synthetic data.
     stage: str = "EVALUATION"
 
@@ -159,7 +162,8 @@ def run_any(cfg: BacktestConfig) -> dict:
     path = Path(cfg.script_path).expanduser() if cfg.script_path else (None if cfg.strategy_name in STRATEGIES else strategy_path(cfg.strategy_name))
     st = adapt(path, cfg.params) if path else None
     bar_cfg = BarConfig(initial_balance=cfg.initial_balance, lot_size_micros=cfg.lot_size_micros, stage=cfg.stage,
-                        contract=cfg.contract, spread_multiplier=cfg.spread_multiplier, label=cfg.strategy_name)
+                        contract=cfg.contract, spread_multiplier=cfg.spread_multiplier, label=cfg.strategy_name,
+                        firm=cfg.firm, plan=cfg.plan, size=cfg.size)
 
     if st is None or st.style == "native_tick":
         if cfg.data_source != "synthetic":
@@ -237,7 +241,7 @@ def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict]
 
 
 def run_backtest(cfg: BacktestConfig, plugin=None) -> dict:
-    rules = load_fleet_config()["rules"]
+    rules = RiskSentinel().rules
     sentinel = RiskSentinel()
     acct = sentinel.new_account("BACKTEST", stage=cfg.stage)  # type: ignore[arg-type]
     acct.closed_balance = acct.day_start_balance = cfg.initial_balance

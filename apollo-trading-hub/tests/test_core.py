@@ -257,3 +257,120 @@ def test_unsupported_formats_explain(tmp_path):
         f = tmp_path / f"x{ext}"; f.write_text("x")
         with pytest.raises(AdapterError, match=word):
             adapt(f)
+
+
+# ---------------- multi-firm / multi-broker ----------------
+def _fleet(*accts):
+    return {"name": "t", "accounts": [dict(a) for a in accts]}
+
+
+M = {"id": "M", "role": "master", "firm": "lucid", "plan": "FLEX", "size": "150K", "broker": "tradovate"}
+
+
+def test_intraday_trailing_and_lock():
+    s = RiskSentinel(_fleet(M, {"id": "A", "role": "copy", "firm": "apex", "plan": "EVAL", "size": "50K", "broker": "rithmic"}))
+    a = s.accounts["A"]
+    assert a.mll == 47500 and a.rules["drawdown_type"] == "INTRADAY"
+    s.mark("A", 1000)                       # intraday high-water mark trails the MLL immediately
+    assert a.mll == 48500
+    s.mark("A", 2700)                       # peak 52,700 >= 50,000+2,500+100 -> locks at 50,100
+    assert a.mll == 50100 and a.mll_locked
+
+
+def test_static_drawdown_and_daily_limit():
+    s = RiskSentinel(_fleet(M, {"id": "F", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE", "size": "100K", "broker": "mt5", "symbol": "XAUUSD"}))
+    f = s.accounts["F"]
+    s.realize("F", 3000); s.end_of_day("F", "2025-01-02")
+    assert f.mll == 90000                   # static: never trails
+    s.mark("F", -5000)
+    assert f.daily_limit_hit and f.status == "DAILY_LIMIT"
+    assert not s.validate_order("F", "EVALUATION", 1, "XAUUSD")["approved"]
+    s.mark("F", 0); s.end_of_day("F", "2025-01-03")
+    assert not f.daily_limit_hit and f.status == "ACTIVE"
+
+
+def test_consistency_pct_blocks_eval_pass():
+    s = RiskSentinel(_fleet(M, {"id": "T", "role": "copy", "firm": "topstep", "plan": "COMBINE", "size": "50K", "broker": "projectx"}))
+    s.realize("T", 2500); s.end_of_day("T", "d1"); s.realize("T", 600); s.end_of_day("T", "d2")
+    assert not s.eval_passed("T")           # best day 2,500 > 50% of 3,100
+    for d in ("d3", "d4", "d5"):
+        s.realize("T", 700); s.end_of_day("T", d)
+    assert s.eval_passed("T")
+
+
+def test_mixed_fleet_copy_ratios_paper():
+    import asyncio
+    from backend.src.trading.tradovate_bridge import Fill, FleetRouter
+    s = RiskSentinel(_fleet(M, {"id": "FT", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE", "size": "100K", "broker": "mt5", "symbol": "XAUUSD", "copy_ratio": 0.1},
+                            {"id": "NT", "role": "copy", "firm": "bulenox", "plan": "TRAILING", "size": "50K", "broker": "rithmic", "copy_ratio": 2}))
+    r = FleetRouter(s)
+    assert r.mode == "PAPER" and {c.name for c in r.connectors.values()} == {"paper"}
+    out = asyncio.run(r.mirror(Fill("M", "Buy", "MGCZ6", 10, 2900.0)))
+    by = {o["account"]: o for o in out}
+    assert by["FT"]["qty"] == 1.0 and by["FT"]["symbol"] == "XAUUSD"   # 10 MGC -> 1.0 lot XAUUSD
+    assert by["NT"]["qty"] == 20
+
+
+def test_live_refuses_unverified_firm(monkeypatch):
+    import asyncio
+    from backend.src.brokers.base import BrokerError, Connector
+    from backend.src.trading import tradovate_bridge as tb
+
+    class Fake(Connector):
+        name = "fake"
+        async def connect(self): self.connected = True
+        async def place_market(self, a, act, sym, q): return {"orderId": 1}
+    monkeypatch.setenv("APOLLO_LIVE", "1")
+    monkeypatch.setattr(tb, "make_connector", lambda b, live, sfx="": Fake(live))
+    s = RiskSentinel(_fleet(M, {"id": "AP", "role": "copy", "firm": "apex", "plan": "EVAL", "size": "50K", "broker": "rithmic"}))
+    r = tb.FleetRouter(s)
+    import pytest
+    with pytest.raises(BrokerError, match="unverified"):
+        asyncio.run(r.place_market("AP", "Buy", "MGCZ6", 1, 2900.0))
+    assert asyncio.run(r.place_market("M", "Buy", "MGCZ6", 1, 2900.0))["orderId"] == 1   # Lucid profile is verified
+
+
+def test_ninjatrader_oif(tmp_path, monkeypatch):
+    import asyncio
+    from backend.src.brokers.ninjatrader import NinjaTraderConnector
+    (tmp_path / "incoming").mkdir(); (tmp_path / "outgoing").mkdir()
+    monkeypatch.setenv("NT8_DIR", str(tmp_path))
+    c = NinjaTraderConnector(True)
+    asyncio.run(c.connect())
+    asyncio.run(c.place_market("APEX-123", "Sell", "MGCZ6", 3))
+    line = next((tmp_path / "incoming").glob("oif*.txt")).read_text().strip()
+    assert line.startswith("PLACE;APEX-123;MGC 12-26;SELL;3;MARKET;;;DAY;")
+    (tmp_path / "outgoing" / "MGC 12-26 APEX-123_position.txt").write_text("SHORT;3;2900.0")
+    assert asyncio.run(c.positions("APEX-123")) == {"MGC 12-26": -3.0}
+
+
+def test_projectx_order_payload(monkeypatch):
+    import asyncio
+    from backend.src.brokers.projectx import ProjectXConnector
+    calls = []
+
+    async def fake_post(self, path, body):
+        calls.append((path, body))
+        return {"/api/Auth/loginKey": {"token": "t"}, "/api/Account/search": {"accounts": [{"name": "50KTC-1", "id": 7}]},
+                "/api/Contract/search": {"contracts": [{"id": "CON.F.US.MGC.Z26", "activeContract": True}]},
+                "/api/Order/place": {"orderId": 99, "success": True}}[path]
+    monkeypatch.setattr(ProjectXConnector, "_post", fake_post)
+    monkeypatch.setenv("PROJECTX_USER", "u"); monkeypatch.setenv("PROJECTX_API_KEY", "k")
+    c = ProjectXConnector(True)
+    asyncio.run(c.connect())
+    r = asyncio.run(c.place_market("50KTC-1", "Buy", "MGCZ6", 2))
+    assert r["orderId"] == 99 and calls[-1][1] == {"accountId": 7, "contractId": "CON.F.US.MGC.Z26", "type": 2, "side": 0, "size": 2}
+
+
+def test_backtest_any_firm_profile():
+    r = _bt("sma_pandas.py", firm="topstep", plan="COMBINE", size="50K")
+    assert r["rules"]["firm_name"] == "Topstep" and r["rules"]["starting_drawdown"] == 2000 and r["rules"]["verified"] is False
+
+
+def test_every_firm_profile_loads():
+    from backend.src.trading.risk_sentinel import list_firms, resolve_rules
+    for firm, meta in list_firms().items():
+        for plan, sizes in meta["plans"].items():
+            for sz in sizes:
+                r = resolve_rules(firm, plan, sz)
+                assert r["starting_drawdown"] > 0 and r["drawdown_type"] in ("END_OF_DAY", "INTRADAY", "STATIC")

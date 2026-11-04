@@ -1,0 +1,49 @@
+{
+  "name": "Tradeify",
+  "platforms": [
+    "tradovate",
+    "ninjatrader",
+    "projectx"
+  ],
+  "contract": "MGC",
+  "verified": false,
+  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "plans": {
+    "GROWTH": {
+      "50K": {
+        "starting_balance": 50000,
+        "starting_drawdown": 2000,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 52100,
+        "mll_lock_level": 50100,
+        "daily_loss_limit": null,
+        "eval_target": 3000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 40,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      },
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 4500,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 154600,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": null,
+        "eval_target": 9000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 120,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      }
+    }
+  }
+}

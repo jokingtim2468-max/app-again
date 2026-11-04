@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .risk_sentinel import ET, RiskSentinel, load_fleet_config
+from .risk_sentinel import ET, RiskSentinel, resolve_rules
 
 CONTRACTS = {  # price-unit economics per contract
     "MGC": {"tick_size": 0.10, "point_value": 10.0, "commission_rt": 1.24},
@@ -31,6 +31,9 @@ class BarConfig:
     default_spread_ticks: float = 1.0
     restart_after_liquidation: bool = True
     label: str = ""
+    firm: str | None = None   # e.g. "topstep"; None = fleet master's profile
+    plan: str | None = None
+    size: str | None = None
     extra: dict = field(default_factory=dict)
 
 
@@ -44,14 +47,15 @@ def run_bars(bars: pd.DataFrame, target: np.ndarray, cfg: BarConfig) -> dict:
         raise ValueError("need at least 2 bars")
     spec = CONTRACTS[cfg.contract]
     tick, pv, comm = spec["tick_size"], spec["point_value"], spec["commission_rt"]
-    rules = load_fleet_config()["rules"]
     sentinel = RiskSentinel()
+    rules = resolve_rules(cfg.firm, cfg.plan, cfg.size) if cfg.firm else sentinel.rules
     aid = "BACKTEST"
 
     def fresh():
-        a = sentinel.new_account(aid, stage=cfg.stage)  # type: ignore[arg-type]
-        a.closed_balance = a.day_start_balance = cfg.initial_balance
-        a.mll = cfg.initial_balance - rules["starting_drawdown"]
+        a = sentinel.new_account(aid, stage=cfg.stage, rules=rules)  # type: ignore[arg-type]
+        if not cfg.firm:  # legacy: caller-chosen balance
+            a.starting_balance = a.closed_balance = a.day_start_balance = a.peak_equity = cfg.initial_balance
+            a.mll = cfg.initial_balance - rules["starting_drawdown"]
         sentinel.accounts[aid] = a
         return a
 
@@ -66,7 +70,7 @@ def run_bars(bars: pd.DataFrame, target: np.ndarray, cfg: BarConfig) -> dict:
     pos, entry = 0, 0.0
     trades, curve, slips = [], [], []
     liquidations = payouts = clamped = 0
-    eod_peak = cfg.initial_balance
+    eod_peak = acct.starting_balance
     max_dd = 0.0
 
     def contracts_for(v: float) -> int:
@@ -100,7 +104,7 @@ def run_bars(bars: pd.DataFrame, target: np.ndarray, cfg: BarConfig) -> dict:
         # 1) execute the decision from the previous bar at this bar's open
         if i > 0 and not acct.liquidated and not acct.halted:
             want = contracts_for(tgt[i - 1])
-            cap = sentinel.validate_order(aid, acct.stage, max(1, abs(want)), cfg.contract)["max_allowed"]
+            cap = sentinel.validate_order(aid, acct.stage, max(1, abs(want)), "MGC")["max_allowed"]
             if abs(want) > cap:
                 want, clamped = int(np.sign(want)) * cap, clamped + 1
             fill(want, o[i], spread[i], bars.index[i])
@@ -135,11 +139,11 @@ def run_bars(bars: pd.DataFrame, target: np.ndarray, cfg: BarConfig) -> dict:
             if acct.liquidated and cfg.restart_after_liquidation and i < len(bars) - 1:
                 pos, entry = 0, 0.0
                 acct = fresh()
-                eod_peak = cfg.initial_balance
+                eod_peak = acct.starting_balance
 
     pnl = np.array([t["pnl"] for t in trades if "pnl" in t]) if trades else np.zeros(0)
     wins, losses = pnl[pnl > 0], pnl[pnl < 0]
-    bal = np.array([cfg.initial_balance] + [p["balance"] for p in curve])
+    bal = np.array([acct.starting_balance] + [p["balance"] for p in curve])
     daily = np.diff(bal)
     return {
         "strategy": cfg.label, "engine": "bar", "bars": len(bars), "trades": int(pnl.size),
@@ -149,5 +153,6 @@ def run_bars(bars: pd.DataFrame, target: np.ndarray, cfg: BarConfig) -> dict:
         "sharpe": round(float(daily.mean() / daily.std() * np.sqrt(252)), 3) if daily.size > 1 and daily.std() > 0 else 0.0,
         "qualified_payouts": payouts, "liquidated_accounts_count": liquidations, "size_clamps": clamped,
         "slippage_cost_usd": round(float(sum(slips)), 2), "equity_curve": curve, "trade_log": trades[-200:],
-        "news_slippage": [],
+        "news_slippage": [], "rules": {k: rules.get(k) for k in ("firm_name", "plan", "size", "drawdown_type", "starting_drawdown",
+                                                                     "daily_loss_limit", "eval_target", "verified")},
     }

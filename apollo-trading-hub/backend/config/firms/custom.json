@@ -1,0 +1,35 @@
+{
+  "name": "Custom / personal broker account",
+  "platforms": [
+    "tradovate",
+    "ninjatrader",
+    "projectx",
+    "mt5",
+    "ibkr",
+    "paper"
+  ],
+  "contract": "MGC",
+  "verified": true,
+  "note": "No prop rules: edit to add your own risk limits.",
+  "plans": {
+    "PERSONAL": {
+      "ANY": {
+        "starting_balance": 50000,
+        "starting_drawdown": 5000,
+        "drawdown_type": "STATIC",
+        "mll_lock_threshold": null,
+        "mll_lock_level": null,
+        "daily_loss_limit": null,
+        "eval_target": 0,
+        "eval_consistency_pct": null,
+        "eval_max_micros": null,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      }
+    }
+  }
+}

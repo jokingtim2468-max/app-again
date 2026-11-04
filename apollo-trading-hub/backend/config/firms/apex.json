@@ -1,0 +1,66 @@
+{
+  "name": "Apex Trader Funding",
+  "platforms": [
+    "tradovate",
+    "ninjatrader",
+    "rithmic"
+  ],
+  "contract": "MGC",
+  "verified": false,
+  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "plans": {
+    "EVAL": {
+      "50K": {
+        "starting_balance": 50000,
+        "starting_drawdown": 2500,
+        "drawdown_type": "INTRADAY",
+        "mll_lock_threshold": 52600,
+        "mll_lock_level": 50100,
+        "daily_loss_limit": null,
+        "eval_target": 3000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 100,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      },
+      "100K": {
+        "starting_balance": 100000,
+        "starting_drawdown": 3000,
+        "drawdown_type": "INTRADAY",
+        "mll_lock_threshold": 103100,
+        "mll_lock_level": 100100,
+        "daily_loss_limit": null,
+        "eval_target": 6000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 140,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      },
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 5000,
+        "drawdown_type": "INTRADAY",
+        "mll_lock_threshold": 155100,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": null,
+        "eval_target": 9000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 170,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null
+      }
+    }
+  }
+}

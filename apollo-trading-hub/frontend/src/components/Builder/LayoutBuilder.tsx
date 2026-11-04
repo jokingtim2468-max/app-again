@@ -10,6 +10,7 @@ import FleetWidget from '../Widgets/FleetWidget';
 import TapeWidget from '../Widgets/TapeWidget';
 import BacktestWidget from '../Widgets/BacktestWidget';
 import TerminalWidget from '../Widgets/TerminalWidget';
+import AccountsWidget from '../Widgets/AccountsWidget';
 
 const Grid = WidthProvider(Responsive);
 export const ROW_HEIGHT = 30;
@@ -25,6 +26,7 @@ function renderWidget(w: WidgetItem) {
     case 'widget-tape': return <TapeWidget minSize={Number(s.min_size ?? 10)} blockSize={Number(s.block_size ?? 10)} />;
     case 'widget-backtest': return <BacktestWidget />;
     case 'widget-terminal': return <TerminalWidget />;
+    case 'widget-accounts': return <AccountsWidget />;
   }
 }
 

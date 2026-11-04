@@ -115,7 +115,7 @@ def parse_deals(raw: bytes) -> pd.DataFrame:
 
 def replay_deals(deals: pd.DataFrame, cfg: BarConfig, server_utc_offset_h: float = 0.0) -> dict:
     """Apply LucidFlex EOD rules to tester deals (closed-trade PnL; intrabar excursion is not in the report)."""
-    rules = load_fleet_config()["rules"]
+    rules = RiskSentinel().rules
     s = RiskSentinel()
     a = s.new_account("MT5", stage=cfg.stage)  # type: ignore[arg-type]
     a.closed_balance = a.day_start_balance = cfg.initial_balance

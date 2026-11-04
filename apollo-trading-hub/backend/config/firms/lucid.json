@@ -1,0 +1,54 @@
+{
+  "name": "Lucid Trading",
+  "platforms": [
+    "tradovate",
+    "ninjatrader",
+    "projectx"
+  ],
+  "contract": "MGC",
+  "verified": true,
+  "note": "LucidFlex 150K values supplied by the account owner.",
+  "plans": {
+    "FLEX": {
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 4500,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 154600,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": null,
+        "eval_target": 9000,
+        "eval_consistency_cap_usd": 3600,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 100,
+        "funded_scaling": [
+          [
+            6000,
+            100
+          ],
+          [
+            4500,
+            80
+          ],
+          [
+            3000,
+            60
+          ],
+          [
+            2000,
+            50
+          ],
+          [
+            0,
+            40
+          ]
+        ],
+        "qualifying_day_threshold": 250,
+        "qualifying_days_required": 5,
+        "max_payout_per_request": 3000,
+        "max_payouts_before_graduation": 5,
+        "cashout_opt_out_value_net": 2025
+      }
+    }
+  }
+}

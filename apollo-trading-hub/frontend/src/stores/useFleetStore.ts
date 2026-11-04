@@ -5,7 +5,8 @@ export interface Account {
   account_id: string; stage: 'EVALUATION' | 'FUNDED'; status: string; closed_balance: number; open_pnl: number;
   equity: number; mll: number; mll_locked: boolean; distance_to_mll: number; closed_profit: number;
   day_start_balance: number; qualifying_days: number; payouts_approved: number; position_qty: number; avg_price: number;
-  max_contracts: number; halted: boolean; liquidated: boolean;
+  max_contracts: number | null; halted: boolean; liquidated: boolean; firm: string; firm_name: string; plan: string; size: string;
+  broker: string; contract: string; verified: boolean; drawdown_type: string; starting_drawdown: number; daily_loss_limit: number | null; day_pnl: number; daily_limit_hit: boolean; role: string; copy_ratio: number;
   payout: { eligible: boolean; max_request: number };
 }
 export interface FleetEvent { type: string; ts?: string; [k: string]: unknown }

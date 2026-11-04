@@ -1,175 +1,122 @@
-"""1 master -> N slave copy trader on Tradovate.
+"""Fleet router: master -> N copy accounts across ANY mix of brokers and prop firms.
 
-Safety: runs in PAPER mode (fills simulated locally, no orders sent) unless APOLLO_LIVE=1.
-With APOLLO_LIVE=1 and TRADOVATE_ENV=demo it trades the Tradovate demo; TRADOVATE_ENV=live
-targets real accounts. Every slave order passes RiskSentinel.validate_order first.
-
-Credentials come from env: TRADOVATE_USER, TRADOVATE_PASS, TRADOVATE_APP_ID,
-TRADOVATE_CID, TRADOVATE_SEC, TRADOVATE_DEVICE_ID. Never commit them.
+PAPER for every account unless APOLLO_LIVE=1. In live mode each account routes through its own connector
+(tradovate / projectx / ninjatrader(rithmic) / mt5 / ibkr), opening orders are refused for accounts whose firm rules
+are unverified templates, and every copy order passes RiskSentinel.validate_order first.
+Credentials come only from env vars (see each connector). Multiple logins of one broker: set account `login: "_2"`
+and use TRADOVATE_USER_2 etc.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import uuid
 from dataclasses import dataclass
 from typing import Callable
 
-import httpx
-import websockets
-
+from ..brokers import BrokerError, make_connector
+from ..brokers.base import Connector
 from .risk_sentinel import RiskSentinel
 
-log = logging.getLogger("apollo_trading_hub.bridge")
-
-ENDPOINTS = {
-    "demo": ("https://demo.tradovateapi.com/v1", "wss://demo.tradovateapi.com/v1/websocket"),
-    "live": ("https://live.tradovateapi.com/v1", "wss://live.tradovateapi.com/v1/websocket"),
-}
+log = logging.getLogger("apollo.router")
 
 
 @dataclass
 class Fill:
     account: str
-    action: str  # Buy / Sell
+    action: str
     symbol: str
-    qty: int
+    qty: float
     price: float | None = None
 
 
-class TradovateBridge:
+class FleetRouter:
     def __init__(self, sentinel: RiskSentinel, on_event: Callable[[dict], None] | None = None):
         self.sentinel = sentinel
         self.cfg = sentinel.config
         self.live = os.getenv("APOLLO_LIVE") == "1"
-        self.env = os.getenv("TRADOVATE_ENV", "demo")
-        self.rest, self.ws_url = ENDPOINTS[self.env]
-        self.token: str | None = None
-        self.account_ids: dict[str, int] = {}
         self.on_event = on_event or (lambda e: None)
-        self.ws = None
-        self._req = 1
-        self.copy_ratio = 1  # 1:1 contract mirroring
+        self.specs = {s["id"]: s for s in sentinel.specs}
+        self.connectors: dict[str, Connector] = {}
+        self.errors: dict[str, str] = {}
         self.journal: list[dict] = []
+        for aid, s in self.specs.items():
+            key = self._key(s)
+            if key not in self.connectors:
+                self.connectors[key] = make_connector(s.get("broker", "paper") if self.live else "paper", self.live, s.get("login", ""))
+
+    @staticmethod
+    def _key(spec: dict) -> str:
+        return f"{spec.get('broker', 'paper')}{spec.get('login', '')}"
+
+    def conn(self, aid: str) -> Connector:
+        return self.connectors[self._key(self.specs[aid])]
 
     @property
     def mode(self) -> str:
-        return f"LIVE:{self.env}" if self.live else "PAPER"
-
-    # ---- auth ------------------------------------------------------------
-    async def authenticate(self) -> None:
         if not self.live:
-            return
-        body = {
-            "name": os.environ["TRADOVATE_USER"], "password": os.environ["TRADOVATE_PASS"],
-            "appId": os.getenv("TRADOVATE_APP_ID", "ApolloTrading"), "appVersion": "1.0",
-            "cid": int(os.environ["TRADOVATE_CID"]), "sec": os.environ["TRADOVATE_SEC"],
-            "deviceId": os.getenv("TRADOVATE_DEVICE_ID", str(uuid.uuid4())),
-        }
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(f"{self.rest}/auth/accesstokenrequest", json=body)
-            r.raise_for_status()
-            data = r.json()
-            if "accessToken" not in data:
-                raise RuntimeError(f"Tradovate auth failed: {data.get('errorText', data)}")
-            self.token = data["accessToken"]
-            r = await c.get(f"{self.rest}/account/list", headers=self._h())
-            r.raise_for_status()
-            self.account_ids = {a["name"]: a["id"] for a in r.json()}
-        log.info("authenticated; accounts=%s", list(self.account_ids))
+            return "PAPER"
+        return "LIVE:" + ",".join(sorted({c.name for c in self.connectors.values()}))
 
-    def _h(self) -> dict:
-        return {"Authorization": f"Bearer {self.token}"}
+    @property
+    def token(self) -> str | None:  # Tradovate market data reuses the Tradovate session
+        for c in self.connectors.values():
+            if c.name == "tradovate" and getattr(c, "token", None):
+                return c.token
+        return None
 
-    # ---- order routing ---------------------------------------------------
-    async def place_market(self, account: str, action: str, symbol: str, qty: int, price: float | None = None) -> dict:
-        if not self.live:
-            res = {"mode": "PAPER", "account": account, "action": action, "symbol": symbol, "qty": qty,
-                   "orderId": f"paper-{uuid.uuid4().hex[:8]}"}
-        else:
-            body = {"accountSpec": account, "accountId": self.account_ids[account], "action": action,
-                    "symbol": symbol, "orderQty": qty, "orderType": "Market", "isAutomated": True}
-            async with httpx.AsyncClient(timeout=10) as c:
-                r = await c.post(f"{self.rest}/order/placeorder", json=body, headers=self._h())
-                r.raise_for_status()
-                res = {"mode": self.mode, **r.json()}
-        if account in self.sentinel.accounts and price is not None:
+    def status(self) -> dict:
+        return {"mode": self.mode, "connectors": {k: {**c.status(), "error": self.errors.get(k)} for k, c in self.connectors.items()}}
+
+    def symbol_for(self, aid: str, symbol: str) -> str:
+        return self.specs.get(aid, {}).get("symbol") or symbol
+
+    # ---- routing ----------------------------------------------------------
+    async def place_market(self, account: str, action: str, symbol: str, qty: float, price: float | None = None) -> dict:
+        acct = self.sentinel.accounts.get(account)
+        if self.live and acct and not acct.verified:
+            opening = acct.position_qty == 0 or (acct.position_qty > 0) == (action == "Buy")
+            if opening:
+                raise BrokerError(f"{account}: {acct.rules.get('firm_name')} rules unverified; live opening orders refused")
+        sym = self.symbol_for(account, symbol)
+        broker_acct = self.specs.get(account, {}).get("broker_account", account)
+        res = await self.conn(account).place_market(broker_acct, action, sym, qty)
+        res.update(account=account, action=action, symbol=sym, qty=qty)
+        if acct and price is not None:
             res["realized"] = round(self.sentinel.apply_fill(account, action, qty, price), 2)
         self.journal.append(res)
         self.on_event({"type": "order", **res})
         return res
 
+    def copy_qty(self, slave: str, master_qty: float) -> float:
+        a = self.sentinel.accounts[slave]
+        q = master_qty * a.copy_ratio
+        return round(q, 2) if a.contract == "XAUUSD" else float(int(round(q)))
+
     async def mirror(self, master_fill: Fill) -> list[dict]:
-        """Copy a master fill to every slave 1:1 after risk validation."""
         results = []
         for slave in self.cfg["slave_accounts"]:
             acct = self.sentinel.accounts[slave]
-            qty = master_fill.qty * self.copy_ratio
-            # closing orders reduce exposure: always allowed unless halted
-            reducing = (acct.position_qty > 0 and master_fill.action == "Sell") or \
-                       (acct.position_qty < 0 and master_fill.action == "Buy")
-            if not reducing:
-                check = self.sentinel.validate_order(slave, acct.stage, qty, master_fill.symbol)
+            qty = self.copy_qty(slave, master_fill.qty)
+            if qty <= 0:
+                continue
+            reducing = (acct.position_qty > 0 and master_fill.action == "Sell") or (acct.position_qty < 0 and master_fill.action == "Buy")
+            if reducing:
+                qty = min(qty, abs(acct.position_qty))
+                if acct.liquidated:
+                    continue
+            else:
+                check = self.sentinel.validate_order(slave, acct.stage, qty, self.symbol_for(slave, master_fill.symbol) if acct.contract != "MGC" else master_fill.symbol, live=self.live)
                 if not check["approved"]:
                     qty = check["approved_qty"]
                     self.on_event({"type": "risk_clamp", "account": slave, **check})
                     if qty <= 0:
                         continue
-            elif acct.halted or acct.liquidated:
-                continue
-            results.append(await self.place_market(slave, master_fill.action, master_fill.symbol, qty, master_fill.price))
-        return results
-
-    # ---- websocket listener ---------------------------------------------
-    async def run(self) -> None:
-        """Listen to master account fills and mirror them. In PAPER mode this idles."""
-        await self.authenticate()
-        if not self.live:
-            log.warning("PAPER mode: no broker connection. Orders via /api/fleet/order are filled at SIM last price.")
-            while True:
-                await asyncio.sleep(3600)
-        master_id = self.account_ids[self.cfg["master_account"]]
-        async with websockets.connect(self.ws_url) as ws:
-            self.ws = ws
-            await ws.recv()  # 'o' open frame
-            await ws.send(f"authorize\n0\n\n{self.token}")
-            await ws.send(f"user/syncrequest\n1\n\n{json.dumps({'accounts': [master_id]})}")
-            hb = asyncio.create_task(self._heartbeat(ws))
             try:
-                async for raw in ws:
-                    await self._handle(raw, master_id)
-            finally:
-                hb.cancel()
-
-    async def _heartbeat(self, ws) -> None:
-        while True:
-            await asyncio.sleep(2.5)
-            await ws.send("[]")
-
-    async def _handle(self, raw: str, master_id: int) -> None:
-        if not raw.startswith("a"):
-            return
-        for msg in json.loads(raw[1:]):
-            if msg.get("e") != "props":
-                continue
-            d = msg.get("d", {})
-            if d.get("entityType") == "fill" and d.get("eventType") == "Created":
-                f = d["entity"]
-                if f.get("accountId") != master_id:
-                    continue
-                contract = await self._contract_name(f["contractId"])
-                fill = Fill(self.cfg["master_account"], f["action"], contract, int(f["qty"]), f.get("price"))
-                self.sentinel.apply_fill(fill.account, fill.action, fill.qty, float(fill.price or 0))
-                self.on_event({"type": "master_fill", **fill.__dict__})
-                await self.mirror(fill)
-
-    async def _contract_name(self, contract_id: int) -> str:
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(f"{self.rest}/contract/item", params={"id": contract_id}, headers=self._h())
-            r.raise_for_status()
-            return r.json()["name"]
+                results.append(await self.place_market(slave, master_fill.action, master_fill.symbol, qty, master_fill.price))
+            except (BrokerError, Exception) as e:  # one bad account must not stop the rest of the fleet
+                self.on_event({"type": "route_error", "account": slave, "error": str(e)})
+        return results
 
     async def flatten(self, account: str, symbol: str, price: float | None = None) -> dict | None:
         acct = self.sentinel.accounts[account]
@@ -177,3 +124,52 @@ class TradovateBridge:
             return None
         action = "Sell" if acct.position_qty > 0 else "Buy"
         return await self.place_market(account, action, symbol, abs(acct.position_qty), price)
+
+    # ---- lifecycle --------------------------------------------------------
+    async def run(self) -> None:
+        for key, c in self.connectors.items():
+            try:
+                await c.connect()
+            except Exception as e:
+                self.errors[key] = str(e)
+                self.on_event({"type": "connector_error", "connector": key, "error": str(e)})
+        if not self.live:
+            while True:
+                await asyncio.sleep(3600)
+        master = self.cfg["master_account"]
+        mc = self.conn(master)
+        if not mc.connected:
+            log.error("master connector not connected: %s", self.errors)
+            while True:
+                await asyncio.sleep(3600)
+
+        def on_fill(f: dict):
+            fill = Fill(master, f["action"], f["symbol"], f["qty"], f.get("price"))
+            self.sentinel.apply_fill(master, fill.action, fill.qty, float(fill.price or 0))
+            self.on_event({"type": "master_fill", **fill.__dict__})
+            asyncio.get_running_loop().create_task(self.mirror(fill))
+
+        if mc.streams_fills:
+            await mc.run_fill_stream(self.specs[master].get("broker_account", master), on_fill)
+        else:
+            await self._poll_fills(mc, master, on_fill)
+
+    async def _poll_fills(self, mc: Connector, master: str, on_fill) -> None:
+        """Brokers without a fill stream: diff the master's positions every second."""
+        broker_acct = self.specs[master].get("broker_account", master)
+        last = await mc.positions(broker_acct)
+        while True:
+            await asyncio.sleep(1)
+            try:
+                cur = await mc.positions(broker_acct)
+            except Exception as e:
+                self.on_event({"type": "connector_error", "connector": mc.name, "error": str(e)})
+                continue
+            for sym in set(cur) | set(last):
+                d = cur.get(sym, 0.0) - last.get(sym, 0.0)
+                if d:
+                    on_fill({"action": "Buy" if d > 0 else "Sell", "qty": abs(d), "symbol": sym, "price": None})
+            last = cur
+
+
+TradovateBridge = FleetRouter  # backwards-compatible name

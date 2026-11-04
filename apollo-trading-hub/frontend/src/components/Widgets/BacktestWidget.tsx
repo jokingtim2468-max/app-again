@@ -40,14 +40,15 @@ export default function BacktestWidget() {
   const [tab, setTab] = useState<'backtest' | 'forward'>('backtest');
   const [strategies, setStrategies] = useState<string[]>([]);
   const [f, setF] = useState({ strategy_name: 'news_momentum', script_path: '', start_date: '2025-01-01', end_date: '2025-03-31',
-    lot_size_micros: 20, stage: 'EVALUATION', data_source: 'synthetic', symbol: 'XAUUSD', timeframe: '5m', data_path: '' });
+    lot_size_micros: 20, stage: 'EVALUATION', firm_key: '', data_source: 'synthetic', symbol: 'XAUUSD', timeframe: '5m', data_path: '' });
   const [res, setRes] = useState<Result | null>(null);
   const [inspect, setInspect] = useState<Adapter | null>(null);
   const [stress, setStress] = useState<{ m: number; pnl: number; liq: number }[]>([]);
   const [mt5, setMt5] = useState<{ connected: boolean; transport: string; error?: string; server?: string } | null>(null);
   const [fwd, setFwd] = useState<Fwd>({ running: false });
   const [busy, setBusy] = useState(''); const [err, setErr] = useState('');
-  useEffect(() => { api<string[]>('/api/strategies').then(setStrategies).catch(() => undefined); }, []);
+  const [firms, setFirms] = useState<Record<string, { name: string; verified: boolean; plans: Record<string, string[]> }>>({});
+  useEffect(() => { api<string[]>('/api/strategies').then(setStrategies).catch(() => undefined); api<typeof firms>('/api/firms').then(setFirms).catch(() => undefined); }, []);
   useEffect(() => { if (f.data_source === 'mt5' || tab === 'forward') api<typeof mt5>('/api/mt5/status').then(setMt5).catch(() => undefined); }, [f.data_source, tab]);
   useEffect(() => {
     if (tab !== 'forward') return;
@@ -57,7 +58,8 @@ export default function BacktestWidget() {
   }, [tab]);
 
   const script = f.script_path.trim() || f.strategy_name;
-  const body = (m = 1) => JSON.stringify({ ...f, script_path: f.script_path.trim() || null, data_path: f.data_path.trim() || null, spread_multiplier: m });
+  const [ff, fp, fs] = f.firm_key ? f.firm_key.split('|') : [null, null, null];
+  const body = (m = 1) => JSON.stringify({ ...f, firm: ff, plan: fp, size: fs, script_path: f.script_path.trim() || null, data_path: f.data_path.trim() || null, spread_multiplier: m });
   const guard = async (k: string, fn: () => Promise<void>) => { setBusy(k); setErr(''); try { await fn(); } catch (e) { setErr(String(e)); } finally { setBusy(''); } };
 
   const run = () => guard('run', async () => { setRes(await api<Result>('/api/backtest', { method: 'POST', body: body() })); setStress([]); setInspect(null); });
@@ -101,6 +103,10 @@ export default function BacktestWidget() {
           <input aria-label="Start" type="date" value={f.start_date} onChange={set('start_date')} />
           <input aria-label="End" type="date" value={f.end_date} onChange={set('end_date')} />
           <select aria-label="Stage" value={f.stage} onChange={set('stage')}><option>EVALUATION</option><option>FUNDED</option></select>
+          <select aria-label="Firm rules" value={f.firm_key} onChange={set('firm_key')} style={{ maxWidth: 200 }}>
+            <option value="">Fleet master's rules</option>
+            {Object.entries(firms).flatMap(([k, v]) => Object.entries(v.plans).flatMap(([p, sizes]) => sizes.map((s) => <option key={`${k}|${p}|${s}`} value={`${k}|${p}|${s}`}>{v.name} {p} {s}{v.verified ? '' : ' ⚠'}</option>)))}
+          </select>
         </>}
         <label className="row mut">MGC <input type="number" min={1} max={100} value={f.lot_size_micros} onChange={set('lot_size_micros')} style={{ width: 54 }} /></label>
         {tab === 'backtest'

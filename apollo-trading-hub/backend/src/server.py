@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -18,11 +19,13 @@ from .trading.backtester import BacktestConfig, list_strategies, run_any, strate
 from .trading.forward_test import ForwardTester
 from .trading.market_feed import MarketFeed
 from .trading.risk_sentinel import ET, RiskSentinel
-from .trading.tradovate_bridge import Fill, TradovateBridge
+from .brokers import BROKERS
+from .trading.risk_sentinel import CONFIG_PATH, list_firms, load_fleet_config
+from .trading.tradovate_bridge import Fill, FleetRouter
 
 sentinel = RiskSentinel()
 sentinel.load()  # resume MLL / payouts / qualifying days across restarts
-SYMBOL = sentinel.config.get("broker", {}).get("front_month_symbol", "MGCZ6")
+SYMBOL = sentinel.config.get("front_month_symbol") or sentinel.config.get("broker", {}).get("front_month_symbol", "MGCZ6")
 subscribers: set[asyncio.Queue] = set()
 
 
@@ -34,7 +37,8 @@ def _emit(e: dict) -> None:
         q.put_nowait(e)
 
 
-bridge = TradovateBridge(sentinel, on_event=_emit)
+bridge = FleetRouter(sentinel, on_event=_emit)
+bridge_task: asyncio.Task | None = None
 feed = MarketFeed(SYMBOL, on_event=_emit)
 feed.token_getter = lambda: bridge.token
 docker_mgr = DockerManager()
@@ -66,7 +70,8 @@ async def mark_to_market():
         await asyncio.sleep(0.25)
         for aid, a in sentinel.accounts.items():
             if a.position_qty and a.avg_price:
-                sentinel.mark(aid, (feed.last - a.avg_price) * 10.0 * a.position_qty)
+                pv = 100.0 if a.contract == "XAUUSD" else 10.0
+                sentinel.mark(aid, (feed.last - a.avg_price) * pv * a.position_qty)
         if bracket:
             px, b = feed.last, bracket
             hit_tp = px >= b["tp"] if b["side"] > 0 else px <= b["tp"]
@@ -78,7 +83,9 @@ async def mark_to_market():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), bridge.run(), autosave(), feed.run(), mark_to_market())]
+    global bridge_task
+    bridge_task = asyncio.create_task(bridge.run())
+    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market())]
     yield
     for t in tasks:
         t.cancel()
@@ -108,6 +115,9 @@ class BacktestReq(BaseModel):
     params: dict | None = None
     contract: str = "MGC"
     mt5_model: str = "every_tick_real"
+    firm: str | None = None
+    plan: str | None = None
+    size: str | None = None
 
 
 class ForwardReq(BaseModel):
@@ -175,7 +185,7 @@ def fleet_status():
     snap = sentinel.snapshot()
     for aid in snap:
         snap[aid]["payout"] = sentinel.payout_eligibility(aid)
-    return {"firm": sentinel.config["firm"], "tier": sentinel.config["tier"], "mode": bridge.mode,
+    return {"name": sentinel.config.get("name", "fleet"), "mode": bridge.mode,
             "master": sentinel.config["master_account"], "symbol": SYMBOL, "last": feed.last, "accounts": snap}
 
 
@@ -226,6 +236,49 @@ async def flatten_all():
     bracket = None
     await flatten_fleet("manual")
     return {"ok": True}
+
+
+@app.get("/api/firms")
+def firms():
+    return list_firms()
+
+
+@app.get("/api/brokers")
+def brokers():
+    return {"available": {k: v[2] for k, v in BROKERS.items()}, **bridge.status()}
+
+
+@app.get("/api/fleet/config")
+def fleet_config():
+    return load_fleet_config()
+
+
+@app.put("/api/fleet/config")
+async def put_fleet_config(cfg: dict):
+    """Validate, save and hot-reload the fleet (accounts across any firms/brokers). Open positions must be flat."""
+    global sentinel, bridge, bridge_task
+    if any(a.position_qty for a in sentinel.accounts.values()):
+        raise HTTPException(409, "flatten all accounts before changing the fleet")
+    try:
+        new = RiskSentinel(cfg)
+    except (ValueError, KeyError, TypeError) as e:
+        raise HTTPException(400, f"invalid fleet: {e}")
+    for aid, a in new.accounts.items():  # keep risk state of accounts that didn't change firm/size
+        old = sentinel.accounts.get(aid)
+        if old and (old.firm, old.plan, old.size) == (a.firm, a.plan, a.size):
+            for k in ("closed_balance", "day_start_balance", "mll", "mll_locked", "peak_equity", "qualifying_days",
+                      "payouts_approved", "total_paid_out", "halted", "liquidated", "status", "best_day_profit", "last_eod", "stage"):
+                setattr(a, k, getattr(old, k))
+    tmp = CONFIG_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cfg, indent=2))
+    tmp.replace(CONFIG_PATH)
+    if bridge_task:
+        bridge_task.cancel()
+    sentinel = new
+    bridge = FleetRouter(sentinel, on_event=_emit)
+    bridge_task = asyncio.create_task(bridge.run())
+    _emit({"type": "fleet_reloaded", "accounts": list(new.accounts), "mode": bridge.mode})
+    return {"ok": True, "accounts": list(new.accounts), "mode": bridge.mode}
 
 
 @app.post("/api/fleet/kill")
