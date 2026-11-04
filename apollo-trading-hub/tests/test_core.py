@@ -7,7 +7,7 @@ from backend.src.trading.backtester import BacktestConfig, run_backtest  # noqa:
 
 
 def test_funded_tiers():
-    assert [funded_max_contracts(p) for p in (0, 1999, 2000, 3000, 4500, 6000, -50)] == [40, 40, 50, 60, 80, 100, 40]
+    assert [funded_max_contracts(p) for p in (0, 999, 1000, 2000, 3000, 4500, -50)] == [40, 40, 50, 60, 80, 100, 40]
 
 
 def test_eod_only_trailing_and_lock():
@@ -268,17 +268,17 @@ M = {"id": "M", "role": "master", "firm": "lucid", "plan": "FLEX", "size": "150K
 
 
 def test_intraday_trailing_and_lock():
-    s = RiskSentinel(_fleet(M, {"id": "A", "role": "copy", "firm": "apex", "plan": "EVAL", "size": "50K", "broker": "rithmic"}))
+    s = RiskSentinel(_fleet(M, {"id": "A", "role": "copy", "firm": "apex", "plan": "INTRADAY", "size": "50K", "broker": "rithmic"}))
     a = s.accounts["A"]
-    assert a.mll == 47500 and a.rules["drawdown_type"] == "INTRADAY"
+    assert a.mll == 48000 and a.rules["drawdown_type"] == "INTRADAY"
     s.mark("A", 1000)                       # intraday high-water mark trails the MLL immediately
-    assert a.mll == 48500
-    s.mark("A", 2700)                       # peak 52,700 >= 50,000+2,500+100 -> locks at 50,100
-    assert a.mll == 50100 and a.mll_locked
+    assert a.mll == 49000
+    s.mark("A", 5000)                       # Apex eval: stops trailing at start + target (53,000)
+    assert a.mll == 53000 and a.mll_locked
 
 
 def test_static_drawdown_and_daily_limit():
-    s = RiskSentinel(_fleet(M, {"id": "F", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE", "size": "100K", "broker": "mt5", "symbol": "XAUUSD"}))
+    s = RiskSentinel(_fleet(M, {"id": "F", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE_2STEP", "size": "100K", "broker": "mt5", "symbol": "XAUUSD"}))
     f = s.accounts["F"]
     s.realize("F", 3000); s.end_of_day("F", "2025-01-02")
     assert f.mll == 90000                   # static: never trails
@@ -295,14 +295,14 @@ def test_consistency_pct_blocks_eval_pass():
     assert not s.eval_passed("T")           # best day 2,500 > 50% of 3,100
     for d in ("d3", "d4", "d5"):
         s.realize("T", 700); s.end_of_day("T", d)
-    t = s.accounts["T"]                     # passed at d5 EOD -> promoted to a fresh funded account
+    t = s.accounts["T"]                     # 55% rule: passed at d5 EOD -> promoted to a fresh funded account
     assert t.stage == "FUNDED" and t.passed_at and t.closed_balance == 50000
 
 
 def test_mixed_fleet_copy_ratios_paper():
     import asyncio
     from backend.src.trading.tradovate_bridge import Fill, FleetRouter
-    s = RiskSentinel(_fleet(M, {"id": "FT", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE", "size": "100K", "broker": "mt5", "symbol": "XAUUSD", "copy_ratio": 0.1},
+    s = RiskSentinel(_fleet(M, {"id": "FT", "role": "copy", "firm": "ftmo", "plan": "CHALLENGE_2STEP", "size": "100K", "broker": "mt5", "symbol": "XAUUSD", "copy_ratio": 0.1},
                             {"id": "NT", "role": "copy", "firm": "bulenox", "plan": "TRAILING", "size": "50K", "broker": "rithmic", "copy_ratio": 2}))
     r = FleetRouter(s)
     assert r.mode == "PAPER" and {c.name for c in r.connectors.values()} == {"paper"}
@@ -323,7 +323,7 @@ def test_live_refuses_unverified_firm(monkeypatch):
         async def place_market(self, a, act, sym, q): return {"orderId": 1}
     monkeypatch.setenv("APOLLO_LIVE", "1")
     monkeypatch.setattr(tb, "make_connector", lambda b, live, sfx="": Fake(live))
-    s = RiskSentinel(_fleet(M, {"id": "AP", "role": "copy", "firm": "apex", "plan": "EVAL", "size": "50K", "broker": "rithmic"}))
+    s = RiskSentinel(_fleet(M, {"id": "AP", "role": "copy", "firm": "takeprofittrader", "plan": "TEST", "size": "150K", "broker": "rithmic"}))
     r = tb.FleetRouter(s)
     import pytest
     with pytest.raises(BrokerError, match="unverified"):
@@ -365,7 +365,7 @@ def test_projectx_order_payload(monkeypatch):
 
 def test_backtest_any_firm_profile():
     r = _bt("sma_pandas.py", firm="topstep", plan="COMBINE", size="50K")
-    assert r["rules"]["firm_name"] == "Topstep" and r["rules"]["starting_drawdown"] == 2000 and r["rules"]["verified"] is False
+    assert r["rules"]["firm_name"] == "Topstep" and r["rules"]["starting_drawdown"] == 2000 and r["rules"]["verified"] is True
 
 
 def test_every_firm_profile_loads():
@@ -442,3 +442,33 @@ def test_ledger_persists(tmp_path):
     s = _lucid_fleet(); s.realize("E1", 8800); s.save(tmp_path / "st.json")
     s2 = _lucid_fleet(); s2.load(tmp_path / "st.json")
     assert s2.accounts["E1"].parked and any(e["kind"] == "PARKED" for e in s2.ledger)
+
+
+
+# ---------------- researched rule details ----------------
+def test_lucid_official_rules():
+    from backend.src.trading.risk_sentinel import resolve_rules
+    r = resolve_rules("lucid", "FLEX", "150K")
+    assert r["eval_consistency_pct"] == 0.40 and r["mll_lock_threshold"] == 154600 and r["mll_lock_level"] == 150100
+    s = RiskSentinel(_fleet(dict(M, stage="FUNDED")))
+    m = s.accounts["M"]
+    assert s.validate_order("M", "FUNDED", 50, "MGC")["max_allowed"] == 40
+    s.realize("M", 1200); assert s.validate_order("M", "FUNDED", 1, "MGC")["max_allowed"] == 50
+    s.realize("M", 3500); assert s.validate_order("M", "FUNDED", 1, "MGC")["max_allowed"] == 100   # $4,700 >= $4,500
+    s.approve_payout("M", 500)
+    assert m.mll == 150100 and m.mll_locked       # first payout locks the MLL at start + $100
+
+
+def test_mffu_rapid_switches_to_intraday_when_funded():
+    s = RiskSentinel(_fleet(M, {"id": "R", "role": "copy", "firm": "mffu", "plan": "RAPID", "size": "50K", "broker": "tradovate"}))
+    r = s.accounts["R"]
+    assert r.rules["drawdown_type"] == "END_OF_DAY"
+    s.promote("R")
+    assert r.rules["drawdown_type"] == "INTRADAY"
+
+
+def test_size_level_unverified_flag():
+    from backend.src.trading.risk_sentinel import resolve_rules
+    assert resolve_rules("takeprofittrader", "TEST", "50K")["verified"] is True
+    assert resolve_rules("takeprofittrader", "TEST", "150K")["verified"] is False
+    assert resolve_rules("ftmo", "CHALLENGE_2STEP", "100K")["sources"]

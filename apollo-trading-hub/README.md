@@ -81,8 +81,8 @@ Direct Rithmic R|API and cTrader Open API need vendor approval/OAuth apps, so Ri
 **Firm rules** (`backend/config/firms/*.json`): Lucid (owner-verified), Topstep, Apex, MyFundedFutures, Take Profit Trader,
 Tradeify, Bulenox, FTMO, FundedNext, The5ers, plus *custom*. The engine handles END_OF_DAY, INTRADAY and STATIC drawdown,
 MLL locks, daily loss limits, profit targets, $ or % consistency, contract caps, funded scaling tiers, payouts and graduation.
-⚠ Every profile except Lucid is a **template marked `verified: false`**. Firms change rules often: check each number against
-your dashboard and set `verified: true`. Until then paper trading and backtests work, but **live opening orders are refused**.
+All profiles were checked against each firm's official help center on 2026-11-04 (see `docs/FIRM_RULES_AUDIT.md`;
+sources are stored in each firm file). Anything still flagged `verified: false` (e.g. TPT 150K) is paper-only until confirmed.
 Backtests can use any profile (*Firm rules* selector / `firm, plan, size` params).
 
 ## Firm caps, the eval queue and lifecycle tracking

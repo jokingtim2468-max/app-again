@@ -26,7 +26,7 @@ STATE_PATH = ROOT / "state" / "fleet_state.json"
 Stage = Literal["EVALUATION", "FUNDED"]
 
 # Lucid FLEX 150K funded tiers (min closed profit, max MGC) kept for callers that import it
-FUNDED_TIERS: list[tuple[float, int]] = [(6000, 100), (4500, 80), (3000, 60), (2000, 50), (0, 40)]
+FUNDED_TIERS: list[tuple[float, int]] = [(4500, 100), (3000, 80), (2000, 60), (1000, 50), (0, 40)]  # LucidFlex 150K (help center, 2026)
 EVAL_MAX_MGC = 100
 
 
@@ -56,7 +56,9 @@ def resolve_rules(firm: str, plan: str, size: str, overrides: dict | None = None
     r.update(overrides or {})
     r.setdefault("eval_consistency_cap_usd", None)
     r["firm"], r["firm_name"], r["plan"], r["size"] = firm, d["name"], plan, size
-    r["verified"] = bool(d.get("verified", False)) and not (overrides or {}).get("_unverified_override", False)
+    size_verified = r.pop("verified", True)  # a single size can be flagged unverified inside a verified firm
+    r["verified"] = bool(d.get("verified", False)) and bool(size_verified) and not (overrides or {}).get("_unverified_override", False)
+    r["verified_on"], r["sources"] = d.get("verified_on"), d.get("sources", [])
     r["contract"] = r.get("contract", d.get("contract", "MGC"))
     r.setdefault("max_funded_accounts", d.get("max_funded_accounts"))  # firm-wide cap on simultaneously funded accounts
     r.setdefault("park_buffer_usd", d.get("park_buffer_usd"))
@@ -357,7 +359,7 @@ class RiskSentinel:
         eligible = (acct.stage == "FUNDED" and need is not None and acct.qualifying_days >= need
                     and acct.closed_profit > 0 and not acct.halted and not acct.liquidated)
         cap = r.get("max_payout_per_request") or float("inf")
-        amount = min(cap, max(0.0, acct.closed_profit / 2)) if eligible else 0.0
+        amount = min(cap, max(0.0, acct.closed_profit * r.get("payout_pct_of_profit", 0.5))) if eligible else 0.0
         return {"account_id": account_id, "eligible": eligible, "max_request": round(amount, 2) if amount != float("inf") else 0.0,
                 "qualifying_days": acct.qualifying_days, "payouts_approved": acct.payouts_approved,
                 "rules_known": need is not None}
@@ -369,6 +371,8 @@ class RiskSentinel:
         acct.payouts_approved += 1
         acct.qualifying_days = 0
         acct.day_start_balance = acct.closed_balance
+        if acct.rules.get("lock_mll_on_first_payout") and acct.rules.get("mll_lock_level") and not acct.mll_locked:
+            acct.mll, acct.mll_locked = acct.rules["mll_lock_level"], True  # LucidFlex: payout locks MLL at start+100
         result = {"account_id": account_id, "payout_number": acct.payouts_approved, "amount": amount}
         self.log(account_id, "PAYOUT", amount=amount, number=acct.payouts_approved)
         grad = acct.rules.get("max_payouts_before_graduation")
@@ -479,6 +483,8 @@ class RiskSentinel:
         if free == 0:
             self.log(aid, "PASSED_OVER_CAP", note="passed while cap full: check the firm dashboard")
         a.stage, a.passed_at = "FUNDED", _now()
+        if a.rules.get("funded_drawdown_type"):  # e.g. MFFU Rapid / TPT PRO: EOD eval -> intraday funded
+            a.rules = {**a.rules, "drawdown_type": a.rules["funded_drawdown_type"]}
         start = a.starting_balance
         a.closed_balance = a.day_start_balance = a.peak_equity = start
         a.mll, a.mll_locked, a.best_day_profit, a.qualifying_days = start - a.rules["starting_drawdown"], False, 0.0, 0

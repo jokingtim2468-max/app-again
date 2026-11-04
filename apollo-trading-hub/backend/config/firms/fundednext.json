@@ -5,8 +5,15 @@
     "ctrader"
   ],
   "contract": "XAUUSD",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://help.fundednext.com/en/articles/17255124-stellar-2-step-challenge",
+    "https://fundednext.com/blog/fundednext-cfds-stellar-2-step-explained"
+  ],
+  "note": "Stellar 2-Step: 8% then 5% targets; DLL 5% of initial balance (resets 00:00 server time); max loss 10% static.",
+  "max_funded_accounts": null,
+  "park_buffer_usd": null,
   "plans": {
     "STELLAR_2STEP": {
       "100K": {
@@ -24,10 +31,10 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "phase2_target": 5000
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

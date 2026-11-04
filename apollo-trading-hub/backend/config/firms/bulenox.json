@@ -5,8 +5,16 @@
     "ninjatrader"
   ],
   "contract": "MGC",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://bulenox.com/accounts-pricing",
+    "https://bulenox.com/help-center/momentum",
+    "https://bulenox.com/help-center/fast-track"
+  ],
+  "note": "Option 1 trailing (intraday, scaling plan, no DLL); Option 2 EOD (DLL pauses the day, removed once trailing reaches start+100). Up to 5 Master-level accounts (Master/Fast Track/Momentum combined).",
+  "max_funded_accounts": 5,
+  "park_buffer_usd": null,
   "plans": {
     "TRAILING": {
       "50K": {
@@ -24,7 +32,8 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
       },
       "150K": {
         "starting_balance": 150000,
@@ -35,35 +44,53 @@
         "daily_loss_limit": null,
         "eval_target": 9000,
         "eval_consistency_pct": null,
+        "eval_max_micros": 150,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true
+      }
+    },
+    "EOD": {
+      "50K": {
+        "starting_balance": 50000,
+        "starting_drawdown": 2000,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 52100,
+        "mll_lock_level": 50100,
+        "daily_loss_limit": 1200,
+        "eval_target": 3000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 40,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true
+      },
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 4500,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 154600,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": 3300,
+        "eval_target": 9000,
+        "eval_consistency_pct": null,
         "eval_max_micros": 120,
         "funded_scaling": null,
         "qualifying_day_threshold": null,
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
-      }
-    },
-    "EOD": {
-      "50K": {
-        "starting_balance": 50000,
-        "starting_drawdown": 2500,
-        "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 52600,
-        "mll_lock_level": 50100,
-        "daily_loss_limit": 1100,
-        "eval_target": 3000,
-        "eval_consistency_pct": null,
-        "eval_max_micros": 70,
-        "funded_scaling": null,
-        "qualifying_day_threshold": null,
-        "qualifying_days_required": null,
-        "max_payout_per_request": null,
-        "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

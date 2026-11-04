@@ -4,8 +4,14 @@
     "mt5"
   ],
   "contract": "XAUUSD",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://the5ers.com/challenge-programs-bootcamp-high-stakes-hyper-growth-explained/"
+  ],
+  "note": "High Stakes: phase 1 target 10% (was 8% in the old template), phase 2 5%, 5% daily loss (terminates), 10% overall.",
+  "max_funded_accounts": null,
+  "park_buffer_usd": null,
   "plans": {
     "HIGH_STAKES": {
       "100K": {
@@ -15,7 +21,7 @@
         "mll_lock_threshold": null,
         "mll_lock_level": null,
         "daily_loss_limit": 5000,
-        "eval_target": 8000,
+        "eval_target": 10000,
         "eval_consistency_pct": null,
         "eval_max_micros": null,
         "funded_scaling": null,
@@ -23,10 +29,10 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "phase2_target": 5000
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

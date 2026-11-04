@@ -6,63 +6,72 @@
     "ninjatrader"
   ],
   "contract": "MGC",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://help.topstep.com/en/articles/8284197-trading-combine-parameters",
+    "https://help.topstep.com/en/articles/8284208-consistency-at-topstep",
+    "https://help.topstep.com/en/articles/8284215-express-funded-account-parameters"
+  ],
+  "note": "Combine consistency 55% (target rises to best day / 0.55). MLL trails EOD and stops at the starting balance. Optional DLL $1,000/$2,000/$3,000 if you added it (set daily_loss_limit via rule_overrides). XFAs: copy trading allowed up to $750K combined buying power, so no fixed account count.",
+  "max_funded_accounts": null,
+  "park_buffer_usd": null,
   "plans": {
     "COMBINE": {
       "50K": {
         "starting_balance": 50000,
         "starting_drawdown": 2000,
         "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 52100,
-        "mll_lock_level": 50100,
+        "mll_lock_threshold": 52000,
+        "mll_lock_level": 50000,
         "daily_loss_limit": null,
         "eval_target": 3000,
-        "eval_consistency_pct": 0.5,
+        "eval_consistency_pct": 0.55,
         "eval_max_micros": 50,
         "funded_scaling": null,
         "qualifying_day_threshold": null,
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
       },
       "100K": {
         "starting_balance": 100000,
         "starting_drawdown": 3000,
         "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 103100,
-        "mll_lock_level": 100100,
+        "mll_lock_threshold": 103000,
+        "mll_lock_level": 100000,
         "daily_loss_limit": null,
         "eval_target": 6000,
-        "eval_consistency_pct": 0.5,
+        "eval_consistency_pct": 0.55,
         "eval_max_micros": 100,
         "funded_scaling": null,
         "qualifying_day_threshold": null,
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
       },
       "150K": {
         "starting_balance": 150000,
         "starting_drawdown": 4500,
         "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 154600,
-        "mll_lock_level": 150100,
+        "mll_lock_threshold": 154500,
+        "mll_lock_level": 150000,
         "daily_loss_limit": null,
         "eval_target": 9000,
-        "eval_consistency_pct": 0.5,
+        "eval_consistency_pct": 0.55,
         "eval_max_micros": 150,
         "funded_scaling": null,
         "qualifying_day_threshold": null,
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

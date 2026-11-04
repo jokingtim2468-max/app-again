@@ -6,10 +6,58 @@
     "projectx"
   ],
   "contract": "MGC",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://help.myfundedfutures.com/en/articles/11802636-traders-evaluation-simplified",
+    "https://myfundedfutures.com/plans/rapid",
+    "https://help.myfundedfutures.com/en/articles/13134709-rapid-plan-50k-a-comprehensive-look"
+  ],
+  "note": "Old 'CORE' plan removed (no longer offered). Rapid eval is EOD; Rapid sim-funded switches to INTRADAY trailing. Builder DLL is a soft pause. Cap: 5 sim-funded for 25K/50K Rapid; 100K/150K limited to 3 total across plans (set 3 if you run those).",
+  "max_funded_accounts": 5,
+  "park_buffer_usd": null,
   "plans": {
-    "CORE": {
+    "RAPID": {
+      "50K": {
+        "starting_balance": 50000,
+        "starting_drawdown": 2000,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 52100,
+        "mll_lock_level": 50100,
+        "daily_loss_limit": null,
+        "eval_target": 3000,
+        "eval_consistency_pct": 0.5,
+        "eval_max_micros": 50,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "funded_drawdown_type": "INTRADAY"
+      },
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 4500,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 154600,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": null,
+        "eval_target": 9000,
+        "eval_consistency_pct": 0.5,
+        "eval_max_micros": 100,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "funded_drawdown_type": "INTRADAY"
+      }
+    },
+    "PRO": {
       "50K": {
         "starting_balance": 50000,
         "starting_drawdown": 2000,
@@ -25,10 +73,9 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
-      }
-    },
-    "PRO": {
+        "cashout_opt_out_value_net": null,
+        "verified": true
+      },
       "150K": {
         "starting_balance": 150000,
         "starting_drawdown": 4500,
@@ -37,17 +84,54 @@
         "mll_lock_level": 150100,
         "daily_loss_limit": null,
         "eval_target": 9000,
-        "eval_consistency_pct": null,
-        "eval_max_micros": 150,
+        "eval_consistency_pct": 0.5,
+        "eval_max_micros": 90,
         "funded_scaling": null,
         "qualifying_day_threshold": null,
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true
+      }
+    },
+    "BUILDER": {
+      "50K": {
+        "starting_balance": 50000,
+        "starting_drawdown": 2000,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 52100,
+        "mll_lock_level": 50100,
+        "daily_loss_limit": 1000,
+        "eval_target": 3000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 40,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true
+      },
+      "150K": {
+        "starting_balance": 150000,
+        "starting_drawdown": 4500,
+        "drawdown_type": "END_OF_DAY",
+        "mll_lock_threshold": 154600,
+        "mll_lock_level": 150100,
+        "daily_loss_limit": 2500,
+        "eval_target": 9000,
+        "eval_consistency_pct": null,
+        "eval_max_micros": 90,
+        "funded_scaling": null,
+        "qualifying_day_threshold": null,
+        "qualifying_days_required": null,
+        "max_payout_per_request": null,
+        "max_payouts_before_graduation": null,
+        "cashout_opt_out_value_net": null,
+        "verified": true
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

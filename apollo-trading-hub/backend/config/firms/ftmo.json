@@ -5,10 +5,17 @@
     "ctrader"
   ],
   "contract": "XAUUSD",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://ftmo.com/en/trading-objectives/",
+    "https://ftmo.com/en/2-step-challenge/"
+  ],
+  "note": "2-Step: static max loss 10% of initial capital; max daily loss 5%, resets 00:00 CE(S)T (Apollo resets at 17:00 ET; the window differs, so keep a margin). Phase 1 target 10%, Verification 5%.",
+  "max_funded_accounts": null,
+  "park_buffer_usd": null,
   "plans": {
-    "CHALLENGE": {
+    "CHALLENGE_2STEP": {
       "100K": {
         "starting_balance": 100000,
         "starting_drawdown": 10000,
@@ -24,7 +31,9 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "phase2_target": 5000
       },
       "200K": {
         "starting_balance": 200000,
@@ -41,10 +50,10 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "phase2_target": 10000
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

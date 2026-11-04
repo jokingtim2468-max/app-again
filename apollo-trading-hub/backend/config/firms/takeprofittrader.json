@@ -6,16 +6,24 @@
     "rithmic"
   ],
   "contract": "MGC",
-  "verified": false,
-  "note": "TEMPLATE - numbers are best-known defaults and may be outdated. Confirm every value against your firm's current rules, then set verified=true. Live routing is blocked until then.",
+  "verified": true,
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://takeprofittrader.com/",
+    "https://takeprofittraderhelp.zendesk.com/hc/en-us/articles/15170316538013-Rule-5-Be-Consistent",
+    "https://takeprofittrader.com/blog/take-profit-trader-vs-topstep"
+  ],
+  "note": "Test: EOD drawdown, 50% consistency, no daily loss limit. PRO: INTRADAY drawdown with buffer; PRO+: EOD. Max 5 PRO / 5 PRO+.",
+  "max_funded_accounts": 5,
+  "park_buffer_usd": null,
   "plans": {
     "TEST": {
       "50K": {
         "starting_balance": 50000,
         "starting_drawdown": 2000,
         "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 52100,
-        "mll_lock_level": 50100,
+        "mll_lock_threshold": 52000,
+        "mll_lock_level": 50000,
         "daily_loss_limit": null,
         "eval_target": 3000,
         "eval_consistency_pct": 0.5,
@@ -25,14 +33,16 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": true,
+        "funded_drawdown_type": "INTRADAY"
       },
       "150K": {
         "starting_balance": 150000,
         "starting_drawdown": 4500,
         "drawdown_type": "END_OF_DAY",
-        "mll_lock_threshold": 154600,
-        "mll_lock_level": 150100,
+        "mll_lock_threshold": 154500,
+        "mll_lock_level": 150000,
         "daily_loss_limit": null,
         "eval_target": 9000,
         "eval_consistency_pct": 0.5,
@@ -42,10 +52,13 @@
         "qualifying_days_required": null,
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
-        "cashout_opt_out_value_net": null
+        "cashout_opt_out_value_net": null,
+        "verified": false,
+        "funded_drawdown_type": "INTRADAY",
+        "field_notes": {
+          "_": "150K numbers from a third-party review, not TPT's own site"
+        }
       }
     }
-  },
-  "max_funded_accounts": null,
-  "park_buffer_usd": null
+  }
 }

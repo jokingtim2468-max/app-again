@@ -7,7 +7,20 @@
   ],
   "contract": "MGC",
   "verified": true,
-  "note": "LucidFlex 150K values and the 5-funded-account cap supplied by the account owner.",
+  "verified_on": "2026-11-04",
+  "sources": [
+    "https://support.lucidtrading.com/en/articles/12945790-lucidflex-evaluation-account",
+    "https://support.lucidtrading.com/en/articles/12945795-lucidflex-funded-account",
+    "https://support.lucidtrading.com/en/articles/12945815-lucidflex-drawdown",
+    "https://support.lucidtrading.com/en/articles/12945808-lucidflex-scaling-plan",
+    "https://support.lucidtrading.com/en/articles/12945796-lucidflex-payouts",
+    "https://support.lucidtrading.com/en/articles/11404617-maximum-number-of-accounts",
+    "https://support.lucidtrading.com/en/articles/12945805-lucidflex-consistency-percentage",
+    "https://support.lucidtrading.com/en/articles/16558826-new-live-structure"
+  ],
+  "note": "Checked against Lucid help center. 5 funded / 5 live / 10 total eval+funded per household.",
+  "max_funded_accounts": 5,
+  "park_buffer_usd": 500,
   "plans": {
     "FLEX": {
       "150K": {
@@ -18,24 +31,23 @@
         "mll_lock_level": 150100,
         "daily_loss_limit": null,
         "eval_target": 9000,
-        "eval_consistency_cap_usd": 3600,
-        "eval_consistency_pct": null,
+        "eval_consistency_pct": 0.4,
         "eval_max_micros": 100,
         "funded_scaling": [
           [
-            6000,
+            4500,
             100
           ],
           [
-            4500,
+            3000,
             80
           ],
           [
-            3000,
+            2000,
             60
           ],
           [
-            2000,
+            1000,
             50
           ],
           [
@@ -47,10 +59,18 @@
         "qualifying_days_required": 5,
         "max_payout_per_request": 3000,
         "max_payouts_before_graduation": 5,
-        "cashout_opt_out_value_net": 2025
+        "cashout_opt_out_value_net": 2025,
+        "verified": true,
+        "payout_pct_of_profit": 0.5,
+        "min_payout": 500,
+        "lock_mll_on_first_payout": true,
+        "eval_consistency_pct_with_addon": 0.5,
+        "funded_daily_loss_limit": "optional (chosen at purchase)",
+        "field_notes": {
+          "eval_consistency_pct": "40% standard; set 0.50 if you bought the 50% consistency add-on",
+          "cashout_opt_out_value_net": "OWNER-SUPPLIED: Lucid's help center says accounts move to LucidLive after payout 5; the $2,025 50% cashout election was not found in public docs - confirm on your dashboard"
+        }
       }
     }
-  },
-  "max_funded_accounts": 5,
-  "park_buffer_usd": 500
+  }
 }
