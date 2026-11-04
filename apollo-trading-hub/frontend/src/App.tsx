@@ -17,7 +17,7 @@ export default function App() {
   useEffect(() => { init(); try { if (!localStorage.getItem('apollo.tour.app')) setTimeout(() => setAppTour(true), 1200); } catch { /* storage blocked */ } }, [init]);
   useEffect(() => { const f = () => setAppTour(true); window.addEventListener('apollo:tour', f); return () => window.removeEventListener('apollo:tour', f); }, []);
   useEffect(() => { const f = () => setRoute(routeFromHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
-  const go = (r: Route) => { window.location.hash = r === 'workspace' ? '#/' : `#/${r}`; setRoute(r); };
+  const go = (r: Route) => { if (import.meta.env.VITE_DEMO !== '1') window.location.hash = r === 'workspace' ? '#/' : `#/${r}`; setRoute(r); };
   const steps: TourStep[] = [
     { title: 'Welcome to Apollo Trading', body: 'A quick tour of the app (about a minute). Press → or Next. You can replay it from the ? button at the top.' , before: () => go('workspace') },
     { target: '[data-tour="rail"]', title: 'Navigation', body: 'Workspace (your trading screen), Builder (design layouts) and Settings (bots, alerts, commands).' },

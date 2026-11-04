@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build && tsc -p electron/tsconfig.json",
     "electron:dev": "tsc -p electron/tsconfig.json && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
-    "dist:win": "npm run build && electron-builder --win nsis --publish never"
+    "dist:win": "npm run build && electron-builder --win nsis --publish never",
+    "build:demo": "vite build --mode demo --outDir dist-demo"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
