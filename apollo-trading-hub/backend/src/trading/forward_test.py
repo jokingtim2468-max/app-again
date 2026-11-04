@@ -29,7 +29,7 @@ class ForwardTester:
         st = adapt(script, params)
         if source != "mt5":
             symbol = "MGC (SIM)"
-        if st.style not in ("vectorized", "event_class", "event_func"):
+        if st.style not in ("vectorized", "event_class", "event_func", "mt5_python", "pine", "freqtrade", "quantconnect"):
             raise ValueError(f"forward testing supports bar-driven scripts; this one is {st.style}")
         sentinel = RiskSentinel()
         acct = sentinel.new_account("FORWARD")

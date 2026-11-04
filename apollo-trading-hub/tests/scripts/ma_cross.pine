@@ -1,0 +1,21 @@
+//@version=5
+strategy("MA Cross + ATR exits", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1)
+fastLen = input.int(9, "Fast")
+slowLen = input.int(21, title="Slow")
+atrMult = input.float(2.0, "ATR mult")
+fast = ta.ema(close, fastLen)
+slow = ta.sma(close, slowLen)
+atr = ta.atr(14)
+var float trail = na
+longCond = ta.crossover(fast, slow)
+shortCond = ta.crossunder(fast, slow)
+if longCond
+    strategy.entry("L", strategy.long)
+    trail := close - atr * atrMult
+else if shortCond
+    strategy.entry("S", strategy.short)
+    trail := close + atr * atrMult
+if strategy.position_size > 0
+    strategy.exit("XL", "L", stop=trail, limit=close + atr * 3)
+plot(fast, color=color.green)
+plot(slow, color=#FF0000)

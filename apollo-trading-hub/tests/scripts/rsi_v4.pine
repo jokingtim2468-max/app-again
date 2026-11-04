@@ -1,0 +1,9 @@
+//@version=4
+strategy("RSI v4", overlay=false)
+len = input(14, title="RSI Length")
+r = rsi(close, len)
+[m, s, h] = macd(close, 12, 26, 9)
+bull = r < 30 and h > h[1]
+bear = r > 70 or crossunder(m, s)
+strategy.entry("Long", strategy.long, when=bull)
+strategy.close("Long", when=bear)

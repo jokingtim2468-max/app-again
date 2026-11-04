@@ -37,13 +37,19 @@ Apollo hashes the file, copies it to `~/.apollo-trading-hub/adapted/<hash>/` and
 | event function | `on_bar(bar)` / `next(bar)` returning an action |
 | **MetaTrader5 Python bot** | `while True:` loop with `mt5.copy_rates_from_pos`, `positions_get`, `order_send`, `time.sleep`. Each sleep advances one bar on a simulated MT5 |
 | **MQL5 EA** `.mq5/.ex5` | runs in MT5's own Strategy Tester (Windows), deals replayed through LucidFlex rules |
-| signal CSV | `time,signal` (e.g. exported from TradingView) |
+| **Pine Script v4/v5/v6** `.pine` | `strategy()` scripts: `ta.*` (sma/ema/rma/wma/hma/vwma/rsi/atr/macd/bb/stoch/cci/supertrend/dmi/vwap/pivots/…), `math.*`, `input.*` (override via params by title), `var`, `x[n]`, `=>` functions, tuples, `switch`, `for`/`while`, `strategy.entry/close/close_all/exit` (stop/limit/profit/loss). Indicators verified against reference math |
+| Freqtrade | `IStrategy` with `populate_indicators` / `populate_entry_trend` / `populate_exit_trend` (or legacy buy/sell) |
+| QuantConnect / LEAN | `QCAlgorithm` with `Initialize` / `OnData`, `SetHoldings`, `Liquidate`, `MarketOrder`, `Portfolio`, `SMA/EMA/RSI`, `History` |
+| Jupyter notebook `.ipynb` | code cells extracted (magics dropped), then auto-detected like any `.py` |
+| Trade-list exports | TradingView "List of trades", NinjaTrader trades, MT4/MT5 history, any CSV with entry/exit time + side, re-simulated with Apollo costs and Lucid rules |
+| signal CSV / JSON | `time,signal` rows, or `{"signals":[{time, signal}]}` |
 | Apollo native | `generate_signals(secs, px, spread, events)` on the 1-second tick engine |
 
 Missing platform packages (backtrader, backtesting, MetaTrader5) are shimmed. A script that loops forever at import is stopped after 20s.
 Every vectorized run gets a **look-ahead check**: if past signals change when future bars are removed, the report warns you.
 Fills happen at the next bar's open plus half the spread plus 1 tick. Intrabar lows/highs are checked against the MLL.
-Pine Script and MQL4 can't be executed; export their signals to CSV instead.
+Can't be executed directly (Apollo explains how to export instead): NinjaScript C#, EasyLanguage, MQL4, AmiBroker AFL,
+Pine `request.security` on another timeframe/symbol, Pine libraries/UDTs. Pine stop/limit *entries* fill as market orders.
 
 ## MetaTrader 5 data (past + live)
 - **Past:** data source *MetaTrader 5* + broker symbol (e.g. `XAUUSD`/`GOLD`) loads real bars via `copy_rates_range` (ticks via `copy_ticks_range` for tick strategies).

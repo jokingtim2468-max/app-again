@@ -1,0 +1,43 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0
+// © someone
+//@version=5
+strategy(title = "Messy Real World",
+     shorttitle = "MRW", overlay = true,
+     default_qty_type = strategy.fixed, default_qty_value = 2, pyramiding = 1,
+     commission_type = strategy.commission.cash_per_contract, commission_value = 0.62)
+
+// ─── Inputs ───
+src        = input.source(close, "Source", group = "Core")
+useVwap    = input.bool(true, "Use VWAP filter", group = "Core")
+mode       = input.string("Trend", "Mode", options = ["Trend", "Revert"])
+tpTicks    = input.int(40, "TP ticks", minval = 1)
+slTicks    = input.int(25, "SL ticks", minval = 1)
+sessionOk  = hour >= 9 and hour < 16
+
+// ─── Calc ───
+vw = ta.vwap(hlc3)
+[st, dir] = ta.supertrend(3.0, 10)
+float basis = ta.ema(src, 20)
+var int bars_in_trade = 0
+bars_in_trade := strategy.position_size != 0 ? bars_in_trade + 1 : 0
+upTrend = dir < 0
+myAvg(x, n) =>
+    s = 0.0
+    for i = 0 to n - 1
+        s := s + x
+    s / n
+avg3 = myAvg(close, 3)
+longSig = mode == "Trend" ? (upTrend and close > basis and (not useVwap or close > vw)) : ta.crossunder(close, basis)
+shortSig = mode == "Trend" ? (not upTrend and close < basis and (not useVwap or close < vw)) : ta.crossover(close, basis)
+
+if sessionOk and barstate.isconfirmed
+    if longSig and strategy.position_size <= 0
+        strategy.entry("Long", strategy.long, comment = "L " + str.tostring(close))
+    if shortSig and strategy.position_size >= 0
+        strategy.entry("Short", strategy.short)
+strategy.exit("XL", from_entry = "Long", profit = tpTicks, loss = slTicks)
+strategy.exit("XS", from_entry = "Short", profit = tpTicks, loss = slTicks)
+if bars_in_trade > 48 or hour >= 16
+    strategy.close_all(comment = "time")
+plotshape(longSig, style = shape.triangleup, location = location.belowbar, color = color.new(color.green, 0))
+alertcondition(longSig, "Long", "Long signal")

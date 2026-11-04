@@ -215,3 +215,45 @@ def test_forward_test_on_sim_feed():
         return st, s
     st, s = asyncio.run(go())
     assert s["error"] is None and s["last_bar"] is not None and st["script"]["style"] == "vectorized"
+
+
+# ---------------- Pine + other platforms ----------------
+def test_pine_indicators_match_reference():
+    import numpy as np
+    from backend.src.data.sources import load_bars
+    from backend.src.trading.pine import PineRuntime
+    bars = load_bars("synthetic", "2025-03-03", "2025-03-05", "5m")
+    rt = PineRuntime('//@version=5\nindicator("x")\na = ta.sma(close, 14)\nr = ta.rsi(close, 14)\nc1 = close[1]\n')
+    rt.run(bars)
+    a = np.array(list(rt.H["a"].vals)); ref = bars.close.rolling(14).mean().to_numpy()
+    assert np.allclose(a[13:], ref[13:]) and np.isnan(a[:13]).all()
+    assert np.allclose(np.array(list(rt.H["c1"].vals))[1:], bars.close.to_numpy()[:-1])
+    r = np.array(list(rt.H["r"].vals)); assert np.nanmin(r) >= 0 and np.nanmax(r) <= 100 and np.isnan(r[:14]).all()
+
+
+def test_all_formats_adapt_without_touching_source():
+    expected = {"ma_cross.pine": "pine", "rsi_v4.pine": "pine", "funcs_v6.pine": "pine", "messy.pine": "pine",
+                "ft_strategy.py": "freqtrade", "qc_algo.py": "quantconnect", "research.ipynb": "vectorized",
+                "signals.json": "vectorized", "tv_trades.csv": "vectorized", "nt_trades.csv": "vectorized"}
+    for f, style in expected.items():
+        before = hashlib.sha256((SCRIPTS / f).read_bytes()).hexdigest()
+        r = _bt(f)
+        assert r["adapter"]["style"] == style, f
+        assert r["trades"] > 0, f
+        assert hashlib.sha256((SCRIPTS / f).read_bytes()).hexdigest() == before, f
+        assert not any("look-ahead bias" in x for x in r["adapter"]["report"]), f
+
+
+def test_pine_inputs_override_and_trade_list_count():
+    r = _bt("messy.pine", params={"Mode": "Revert"})
+    assert any("'Mode': 'Revert'" in x for x in r["adapter"]["report"])
+    assert _bt("nt_trades.csv")["trades"] == 2 and _bt("tv_trades.csv")["trades"] == 2
+
+
+def test_unsupported_formats_explain(tmp_path):
+    from backend.src.trading.adapter import AdapterError, adapt
+    import pytest
+    for ext, word in ((".cs", "NinjaTrader"), (".els", "TradeStation"), (".mq4", "MQL4")):
+        f = tmp_path / f"x{ext}"; f.write_text("x")
+        with pytest.raises(AdapterError, match=word):
+            adapt(f)

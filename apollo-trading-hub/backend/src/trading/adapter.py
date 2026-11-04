@@ -71,12 +71,28 @@ class AdaptedStrategy:
             return self._run_events(bars)
         if self.style == "mt5_python":
             return self._run_mt5(bars)
+        if self.style == "pine":
+            from .pine import PineRuntime
+            rt = PineRuntime(self.module, self._params)
+            out = rt.run(bars)
+            self.report[:] = [r for r in self.report if not r.startswith(("inputs used", "pine notes", "pine: "))]
+            self.report.append(f"inputs used: {rt.used_inputs}" if rt.used_inputs else "inputs used: none")
+            notes = sorted(rt.strat.notes | rt.unsupported)
+            if notes:
+                self.report.append("pine notes: " + "; ".join(notes))
+            if rt.meta["kind"] != "strategy":
+                self.report.append("pine: script is an indicator (no strategy.* orders) -> flat; convert to strategy() to trade")
+            return out
+        if self.style == "freqtrade":
+            return self._run_freqtrade(bars)
+        if self.style == "quantconnect":
+            return self._run_qc(bars)
         raise AdapterError(f"style {self.style} is not bar-driven")
 
     def lookahead_check(self, bars: pd.DataFrame, full: np.ndarray, samples: int = 4) -> list[int]:
         """Re-run on truncated history; a past signal that changes means the script peeks at future bars."""
-        if self.style != "vectorized" or len(bars) < 200:
-            return []
+        if self.style != "vectorized" or len(bars) < 200 or self.entrypoint.startswith(("trade_list", "signal_file")):
+            return []  # external fixed signals/trades: nothing to peek at
         bad = []
         for cut in np.linspace(len(bars) * 0.3, len(bars) - 2, samples).astype(int):
             part = self.run(bars.iloc[: cut + 1])
@@ -135,6 +151,52 @@ class AdaptedStrategy:
             out[i] = ctx.position_target
         return out
 
+
+    # ---------- Freqtrade IStrategy ----------
+    def _run_freqtrade(self, bars: pd.DataFrame) -> np.ndarray:
+        df = user_frame(bars).rename(columns={"time": "date"})
+        obj = self._cls.__new__(self._cls)
+        try:
+            self._cls.__init__(obj, {})
+        except TypeError:
+            try:
+                self._cls.__init__(obj)
+            except Exception:
+                pass
+        meta = {"pair": "MGC/USD"}
+        df = obj.populate_indicators(df, meta)
+        if hasattr(obj, "populate_entry_trend"):
+            df = obj.populate_entry_trend(df, meta); df = obj.populate_exit_trend(df, meta)
+            cols = {"entries": "enter_long", "exits": "exit_long", "short_entries": "enter_short", "short_exits": "exit_short"}
+        else:  # legacy freqtrade: populate_buy_trend / populate_sell_trend with 'buy'/'sell' columns
+            df = obj.populate_buy_trend(df, meta); df = obj.populate_sell_trend(df, meta)
+            cols = {"entries": "buy", "exits": "sell"}
+        sig = pd.DataFrame({k: (df[v].fillna(0).astype(bool) if v in df else False) for k, v in cols.items()}, index=df.index)
+        if not getattr(obj, "can_short", False):
+            sig["short_entries"] = False
+        roi = getattr(obj, "minimal_roi", None); sl = getattr(obj, "stoploss", None)
+        if roi or sl:
+            self.report.append(f"freqtrade minimal_roi/stoploss ({sl}) not simulated; exits come from exit signals")
+        return normalize_output(sig, df, self.report)
+
+    # ---------- QuantConnect / LEAN ----------
+    def _run_qc(self, bars: pd.DataFrame) -> np.ndarray:
+        df = user_frame(bars)
+        ctx = EventContext(df)
+        algo = self._cls.__new__(self._cls)
+        _QCBase._bind(algo, ctx)
+        for init in ("Initialize", "initialize"):
+            if hasattr(algo, init):
+                getattr(algo, init)(); break
+        on = getattr(algo, "OnData", None) or getattr(algo, "on_data")
+        out = np.zeros(len(df))
+        for i in range(len(df)):
+            ctx.i = i
+            algo._qc_update()
+            on(_QCSlice(algo, ctx))
+            out[i] = ctx.position_target
+        self.report.extend(sorted(algo._qc_notes))
+        return out
 
     # ---------- MetaTrader5 python bot ----------
     def _run_mt5(self, bars: pd.DataFrame) -> np.ndarray:
@@ -429,6 +491,35 @@ def _shim_modules() -> dict[str, types.ModuleType]:
     shims["backtrader.indicators"] = ind
     shims["backtesting"] = mod("backtesting", Strategy=_Strategy, Backtest=object)
     shims["backtesting.lib"] = mod("backtesting.lib", crossover=lambda a, b: bool(len(np.asarray(a)) > 1 and np.asarray(a)[-2] < np.asarray(b)[-2] and np.asarray(a)[-1] > np.asarray(b)[-1]))
+    class _IStrategy:
+        INTERFACE_VERSION, can_short, minimal_roi, stoploss, timeframe = 3, False, {}, -1.0, "5m"
+        def __init__(self, config=None): self.config = config or {}
+    def _param(default=None, *a, **k):
+        return types.SimpleNamespace(value=k.get("default", default if not isinstance(default, (list, tuple)) else default[0]))
+    shims["freqtrade"] = mod("freqtrade")
+    shims["freqtrade.strategy"] = mod("freqtrade.strategy", IStrategy=_IStrategy, IntParameter=lambda lo, hi, default=None, **k: types.SimpleNamespace(value=default),
+                                      DecimalParameter=lambda lo, hi, default=None, **k: types.SimpleNamespace(value=default),
+                                      CategoricalParameter=lambda cats, default=None, **k: types.SimpleNamespace(value=default),
+                                      BooleanParameter=lambda default=None, **k: types.SimpleNamespace(value=default),
+                                      merge_informative_pair=lambda df, *a, **k: df, informative=lambda *a, **k: (lambda f: f))
+    shims["freqtrade.strategy.interface"] = shims["freqtrade.strategy"]
+    shims["freqtrade.vendor"] = mod("freqtrade.vendor")
+    shims["freqtrade.vendor.qtpylib"] = mod("freqtrade.vendor.qtpylib")
+    shims["freqtrade.vendor.qtpylib.indicators"] = qtl = mod("freqtrade.vendor.qtpylib.indicators",
+        crossed_above=lambda a, b: (a > b) & (a.shift(1) <= (b.shift(1) if hasattr(b, "shift") else b)),
+        crossed_below=lambda a, b: (a < b) & (a.shift(1) >= (b.shift(1) if hasattr(b, "shift") else b)),
+        typical_price=lambda df: (df["high"] + df["low"] + df["close"]) / 3,
+        bollinger_bands=lambda s, window=20, stds=2: pd.DataFrame({"mid": s.rolling(window).mean(),
+            "upper": s.rolling(window).mean() + stds * s.rolling(window).std(), "lower": s.rolling(window).mean() - stds * s.rolling(window).std()}))
+    class _QCAlgorithm:
+        pass
+    qc = mod("AlgorithmImports", QCAlgorithm=_QCAlgorithm, Resolution=types.SimpleNamespace(Minute="Minute", Hour="Hour", Daily="Daily", Second="Second", Tick="Tick"),
+             Market=types.SimpleNamespace(), MovingAverageType=types.SimpleNamespace(Simple="Simple", Exponential="Exponential"),
+             BrokerageName=types.SimpleNamespace(), AccountType=types.SimpleNamespace(), Futures=types.SimpleNamespace(),
+             Symbol=types.SimpleNamespace, TradeBar=object, Slice=object, Chart=object, Series=object)
+    shims["AlgorithmImports"] = qc
+    shims["QuantConnect"] = mod("QuantConnect", **{k: v for k, v in vars(qc).items() if not k.startswith("__")})
+    shims["QuantConnect.Algorithm"] = mod("QuantConnect.Algorithm", QCAlgorithm=_QCAlgorithm)
     consts = {k: v for k, v in vars(MT5Sim).items() if k.isupper()}
     shims["MetaTrader5"] = mod("MetaTrader5", initialize=lambda *a, **k: True, shutdown=lambda: None,
                                login=lambda *a, **k: True, last_error=lambda: (1, "Success"), **consts)
@@ -589,6 +680,104 @@ class MT5Sim:
                    comment="apollo-sim", request=req)
 
 
+class _QCIndicator:
+    def __init__(self, kind, n, ctx):
+        self.kind, self.n, self.ctx, self.vals = kind, int(n), ctx, []
+        self.Current = types.SimpleNamespace(Value=0.0)
+        self.IsReady = False
+
+    def _update(self):
+        c = self.ctx.df["close"].to_numpy()[: self.ctx.i + 1]
+        if self.kind == "SMA":
+            v = c[-self.n:].mean() if len(c) >= self.n else np.nan
+        elif self.kind == "EMA":
+            v = pd.Series(c).ewm(span=self.n, adjust=False).mean().iloc[-1] if len(c) >= self.n else np.nan
+        else:  # RSI
+            v = _rsi(c, self.n)[-1] if len(c) > self.n else np.nan
+        self.IsReady = not np.isnan(v)
+        self.Current.Value = float(v) if self.IsReady else 0.0
+
+    def __float__(self): return self.Current.Value
+    @property
+    def current(self): return self.Current
+    @property
+    def is_ready(self): return self.IsReady
+
+
+class _QCSymbolData(dict):
+    pass
+
+
+class _QCSlice:
+    def __init__(self, algo, ctx):
+        r = ctx.df.iloc[ctx.i]
+        bar = types.SimpleNamespace(Open=r["open"], High=r["high"], Low=r["low"], Close=r["close"], Volume=r["volume"],
+                                    Price=r["close"], EndTime=ctx.df.index[ctx.i], Time=ctx.df.index[ctx.i])
+        for k in list(vars(bar)):
+            setattr(bar, k.lower(), getattr(bar, k))
+        self._bar, self.Bars = bar, {s: bar for s in algo._qc_symbols}
+        self.bars = self.Bars
+
+    def __getitem__(self, k): return self._bar
+    def __contains__(self, k): return True
+    def ContainsKey(self, k): return True
+    def contains_key(self, k): return True
+
+
+class _QCBase:
+    """Methods injected into a QCAlgorithm subclass instance."""
+    @staticmethod
+    def _bind(a, ctx):
+        a._qc_ctx, a._qc_symbols, a._qc_inds, a._qc_notes = ctx, [], [], set()
+        noop = lambda *x, **k: None
+        def add(ticker, *x, **k):
+            sym = types.SimpleNamespace(Symbol=str(ticker), symbol=str(ticker), Value=str(ticker))
+            a._qc_symbols.append(str(ticker)); return sym
+        def ind(kind):
+            def make(sym, n, *x, **k):
+                i = _QCIndicator(kind, n, ctx); a._qc_inds.append(i); return i
+            return make
+        def holdings(sym, pct, *x, **k):
+            ctx.position_target = float(np.sign(pct)) if abs(pct) <= 1 else float(pct)
+        def liquidate(*x, **k):
+            ctx.position_target = 0.0
+        def mo(sym, qty, *x, **k):
+            ctx.position_target = 0.0 if np.sign(qty) == -np.sign(ctx.position_target) and ctx.position_target else float(np.sign(qty))
+        class Port(dict):
+            def __getitem__(self_, k):
+                p = ctx.position_target
+                return types.SimpleNamespace(Invested=p != 0, invested=p != 0, Quantity=p, quantity=p, IsLong=p > 0, IsShort=p < 0,
+                                             is_long=p > 0, is_short=p < 0)
+            @property
+            def Invested(self_): return ctx.position_target != 0
+        def secs():
+            class S(dict):
+                def __getitem__(self_, k):
+                    c = ctx.df["close"].iloc[ctx.i]; return types.SimpleNamespace(Price=c, price=c, Close=c, close=c)
+            return S()
+        def hist(sym, n, *x, **k):
+            d = ctx.df.iloc[max(0, ctx.i - int(n) + 1): ctx.i + 1]
+            return d[["open", "high", "low", "close", "volume"]]
+        api = {"SetStartDate": noop, "SetEndDate": noop, "SetCash": noop, "SetWarmUp": noop, "SetBenchmark": noop,
+               "SetBrokerageModel": noop, "Debug": noop, "Log": noop, "Plot": noop, "SetTimeZone": noop,
+               "AddEquity": add, "AddForex": add, "AddCfd": add, "AddFuture": add, "AddCrypto": add, "AddSecurity": add,
+               "SMA": ind("SMA"), "EMA": ind("EMA"), "RSI": ind("RSI"),
+               "SetHoldings": holdings, "Liquidate": liquidate, "MarketOrder": mo, "History": hist,
+               "Portfolio": Port(), "Securities": secs(), "IsWarmingUp": False, "Time": None}
+        api.update({"set_start_date": noop, "set_end_date": noop, "set_cash": noop, "set_warm_up": noop, "debug": noop, "log": noop,
+                    "plot": noop, "add_equity": add, "add_forex": add, "add_cfd": add, "add_future": add, "add_crypto": add,
+                    "sma": ind("SMA"), "ema": ind("EMA"), "rsi": ind("RSI"), "set_holdings": holdings, "liquidate": liquidate,
+                    "market_order": mo, "history": hist, "portfolio": api["Portfolio"], "securities": api["Securities"],
+                    "is_warming_up": False})
+        for k, v in api.items():
+            object.__setattr__(a, k, v)
+        def upd():
+            for i in a._qc_inds:
+                i._update()
+            object.__setattr__(a, "Time", ctx.df.index[ctx.i]); object.__setattr__(a, "time", ctx.df.index[ctx.i])
+        object.__setattr__(a, "_qc_update", upd)
+
+
 class _TimeProxy:
     def __init__(self, real): self._real = real
     def sleep(self, *_): raise _NextBar()
@@ -612,18 +801,28 @@ def adapt(path: str | Path, params: dict | None = None) -> AdaptedStrategy:
         return AdaptedStrategy(src.stem, str(src), digest, "mql5", "OnTick",
                                ["MQL5 Expert Advisor: executed by the MetaTrader 5 Strategy Tester on a copy; "
                                 "deals are then replayed through Apollo's LucidFlex rules"])
-    if ext == ".pine":
-        raise AdapterError("Pine Script runs only on TradingView. Export the strategy's 'List of trades' or signals to CSV "
-                           "and backtest that CSV as a signal file, or port the logic to Python.")
-    if ext == ".csv":
+    if ext in (".pine", ".pinescript") or (ext == ".txt" and re.search(r"//\s*@version|\b(strategy|indicator|study)\s*\(", src.read_text(errors="replace")[:4000])):
+        return _pine(src, digest, params)
+    if ext in (".csv", ".tsv"):
         return _signal_file(src, digest)
-    if ext != ".py":
-        raise AdapterError(f"unsupported script type {ext}; supported: .py, .mq5/.ex5, signal .csv")
+    if ext == ".json":
+        return _json_signals(src, digest)
+    if ext in UNSUPPORTED:
+        raise AdapterError(UNSUPPORTED[ext])
+    if ext not in (".py", ".ipynb"):
+        raise AdapterError(f"unsupported script type {ext}; supported: {', '.join(SUPPORTED_EXTS)}")
 
     work = CACHE / digest[:16]
     work.mkdir(parents=True, exist_ok=True)
     copy = work / src.name
-    if not copy.exists():
+    if ext == ".ipynb":  # notebook -> code cells (magics/shell lines dropped) into the harness copy
+        import json as _json
+        nb = _json.loads(src.read_text())
+        cells = ["".join(c["source"]) if isinstance(c["source"], list) else c["source"] for c in nb.get("cells", []) if c.get("cell_type") == "code"]
+        code = "\n\n".join("\n".join(ln for ln in c.splitlines() if not ln.lstrip().startswith(("%", "!"))) for c in cells)
+        copy = work / (src.stem + ".py")
+        copy.write_text(code)
+    elif not copy.exists():
         shutil.copy2(src, copy)  # the harness only ever touches this copy
     report = [f"source untouched: {src} (sha256 {digest[:12]}…); harness copy {copy}"]
     text = copy.read_text(errors="replace")
@@ -664,6 +863,17 @@ def adapt(path: str | Path, params: dict | None = None) -> AdaptedStrategy:
     p.update(params or {})
     st = AdaptedStrategy(src.stem, str(src), digest, "", "", report, _params=p, module=module)
 
+    for name, obj in vars(module).items():
+        if inspect.isclass(obj) and obj.__module__ == module.__name__ and callable(getattr(obj, "populate_indicators", None)):
+            st.style, st.entrypoint, st._cls = "freqtrade", f"{name}.populate_*", obj
+            report.append(f"detected Freqtrade strategy {name}: populate_indicators -> entry/exit trend columns")
+            return st
+        if inspect.isclass(obj) and obj.__module__ == module.__name__ and (callable(getattr(obj, "OnData", None)) or callable(getattr(obj, "on_data", None))) \
+                and (callable(getattr(obj, "Initialize", None)) or callable(getattr(obj, "initialize", None))):
+            st.style, st.entrypoint, st._cls = "quantconnect", f"{name}.OnData", obj
+            report.append(f"detected QuantConnect/LEAN algorithm {name}: Initialize() once, OnData() per bar "
+                          "(SetHoldings/Liquidate/MarketOrder, Portfolio, SMA/EMA/RSI, History)")
+            return st
     f = getattr(module, "generate_signals", None)
     if callable(f) and len(inspect.signature(f).parameters) == 4:
         st.style, st.entrypoint, st._fn = "native_tick", "generate_signals", f
@@ -706,14 +916,107 @@ def adapt(path: str | Path, params: dict | None = None) -> AdaptedStrategy:
                        f"or Apollo generate_signals(secs, px, spread, events). Functions found: {funcs}")
 
 
+UNSUPPORTED = {
+    ".cs": "NinjaScript (C#) needs NinjaTrader. Export Strategy Analyzer > Trades to CSV and backtest that file (trade lists are supported).",
+    ".els": "EasyLanguage needs TradeStation. Export the Strategy Performance Report 'List of Trades' to CSV and backtest that.",
+    ".eld": "EasyLanguage needs TradeStation. Export the 'List of Trades' to CSV and backtest that.",
+    ".mq4": "MQL4 (MT4) can't run in MT5. Recompile as .mq5, or export the MT4 account history (trades) to CSV.",
+    ".ex4": "MQL4 (MT4) can't run in MT5. Recompile as .mq5, or export the MT4 account history (trades) to CSV.",
+    ".afl": "AmiBroker AFL needs AmiBroker. Export the backtest trade list to CSV and backtest that.",
+    ".xlsx": "Save the sheet as CSV (File > Save As > CSV) and backtest the CSV.",
+}
+SUPPORTED_EXTS = [".py", ".ipynb", ".pine", ".mq5", ".ex5", ".csv", ".tsv", ".json"]
+
+
+def _pine(src: Path, digest: str, params: dict | None) -> AdaptedStrategy:
+    from .pine import PineError, compile_pine
+    text = src.read_text(errors="replace")
+    try:
+        py, meta = compile_pine(text)
+    except PineError as e:
+        raise AdapterError(f"Pine: {e}") from e
+    work = CACHE / digest[:16]
+    work.mkdir(parents=True, exist_ok=True)
+    (work / src.name).write_text(text)
+    (work / (src.stem + "_transpiled.py")).write_text(py)  # inspectable translation; source file untouched
+    return AdaptedStrategy(src.stem, str(src), digest, "pine", f"{meta['kind']}() v{meta['version']}",
+                           [f"source untouched: {src} (sha256 {digest[:12]}…); transpiled copy {work / (src.stem + '_transpiled.py')}",
+                            f"Pine v{meta['version']} {meta['kind']}: {meta['sites']} call sites, user functions {meta['user_functions'] or 'none'}; "
+                            "runs bar-by-bar with Pine series semantics, orders fill next bar open"],
+                           _params=dict(params or {}), module=text)
+
+
+def _json_signals(src: Path, digest: str) -> AdaptedStrategy:
+    import json as _json
+    data = _json.loads(src.read_text())
+    rows = data.get("signals", data.get("trades", data)) if isinstance(data, dict) else data
+    if not isinstance(rows, list) or not rows:
+        raise AdapterError("JSON must be a list of {time, signal} objects (or {'signals': [...]})")
+    tmp = CACHE / digest[:16]
+    tmp.mkdir(parents=True, exist_ok=True)
+    csv = tmp / (src.stem + ".csv")
+    pd.DataFrame(rows).to_csv(csv, index=False)
+    st = _signal_file(csv, digest)
+    st.source_path = str(src)
+    st.report.insert(0, "JSON signals converted to a harness CSV")
+    return st
+
+
+TRADE_COLS = {  # (entry time, exit time, side, qty) aliases across TradingView, NinjaTrader, TradeStation, MT4/MT5 exports
+    "entry_time": ["entry time", "entry date", "open time", "entry date/time", "time open", "opentime"],
+    "exit_time": ["exit time", "exit date", "close time", "exit date/time", "time close", "closetime"],
+    "side": ["market pos.", "market position", "side", "direction", "type", "position"],
+    "qty": ["qty", "quantity", "contracts", "volume", "size", "lots"],
+}
+
+
+def _trade_list(df: pd.DataFrame, src: Path, digest: str) -> AdaptedStrategy | None:
+    cols = {c: c for c in df.columns}
+    find = lambda key: next((cols[c] for c in cols if c in TRADE_COLS[key]), None)
+    et, xt, sd = find("entry_time"), find("exit_time"), find("side")
+    if et and xt and sd:
+        trades = df[[et, xt, sd]].dropna()
+    elif "trade #" in cols and "date/time" in cols and "type" in cols:
+        # TradingView "List of trades": two rows per trade ("Entry Long"/"Exit Long")
+        tv = df.copy()
+        tv["kind"] = tv["type"].str.lower()
+        ent = tv[tv["kind"].str.contains("entry")].set_index("trade #")
+        ext = tv[tv["kind"].str.contains("exit")].set_index("trade #")
+        trades = pd.DataFrame({"e": ent["date/time"], "x": ext["date/time"], "s": ent["kind"]}).dropna()
+        et, xt, sd = "e", "x", "s"
+    else:
+        return None
+    t_e = pd.to_datetime(trades[et]); t_x = pd.to_datetime(trades[xt])
+    tz = lambda t: t.dt.tz_localize("America/New_York") if t.dt.tz is None else t
+    t_e, t_x = tz(t_e).dt.tz_convert("UTC"), tz(t_x).dt.tz_convert("UTC")
+    side = trades[sd].astype(str).str.lower().map(lambda v: -1.0 if any(w in v for w in ("short", "sell")) else 1.0)
+    spans = list(zip(t_e, t_x, side))
+
+    def fn(d):
+        out = np.zeros(len(d))
+        idx = d.index
+        for a, b, s_ in spans:
+            # decision bar = bar before entry so the engine's next-open fill lands on the entry bar
+            i0 = max(0, idx.searchsorted(a) - 1); i1 = max(0, idx.searchsorted(b) - 1)
+            out[i0:i1] = s_
+        return out
+    return AdaptedStrategy(src.stem, str(src), digest, "vectorized", "trade_list",
+                           [f"trade list export: {len(spans)} trades re-simulated on bars with Apollo costs and LucidFlex rules "
+                            f"(columns {et!r}/{xt!r}/{sd!r})"], _fn=fn)
+
+
 def _signal_file(src: Path, digest: str) -> AdaptedStrategy:
     """A CSV of signals/trades (e.g. TradingView export): time + signal|position|side|action."""
     sig = pd.read_csv(src, sep=None, engine="python")
     sig.columns = [c.strip().lower() for c in sig.columns]
+    tl = _trade_list(sig, src, digest)
+    if tl:
+        return tl
     tcol = next((c for c in ("time", "timestamp", "datetime", "date/time", "date") if c in sig), None)
     vcol = next((c for c in SIGNAL_COLS + ["action", "type"] if c in sig), None)
     if not tcol or not vcol:
-        raise AdapterError(f"signal CSV needs a time column and one of {SIGNAL_COLS + ['action', 'type']}")
+        raise AdapterError(f"CSV not recognised: need time + one of {SIGNAL_COLS + ['action', 'type']} (signals), "
+                           "or entry/exit time + side columns (trade list, e.g. TradingView/NinjaTrader/MT5 export)")
     idx = pd.to_datetime(sig[tcol])
     idx = idx.dt.tz_localize("America/New_York") if idx.dt.tz is None else idx
     ser = pd.Series(sig[vcol].map(lambda v: _word(re.sub(r"^(entry|exit)\s*", "", str(v).lower()).strip() or v)).to_numpy(),

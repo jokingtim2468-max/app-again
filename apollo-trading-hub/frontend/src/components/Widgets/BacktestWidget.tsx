@@ -87,7 +87,7 @@ export default function BacktestWidget() {
         <select aria-label="Strategy" value={f.strategy_name} onChange={set('strategy_name')} disabled={!!f.script_path.trim()}>
           {(strategies.length ? strategies : [f.strategy_name]).map((s) => <option key={s}>{s}</option>)}
         </select>
-        <input aria-label="Script path" placeholder="…or any script path (.py .mq5 .ex5 .csv)" value={f.script_path} onChange={set('script_path')} style={{ flex: 1, minWidth: 200 }} />
+        <input aria-label="Script path" placeholder="…or any script path (.pine .py .ipynb .mq5 .ex5 .csv .json)" value={f.script_path} onChange={set('script_path')} style={{ flex: 1, minWidth: 200 }} />
         <button onClick={doInspect} disabled={!!busy}>{busy === 'inspect' ? '…' : 'Inspect'}</button>
       </div>
       <div className="row" style={{ flexWrap: 'wrap' }}>

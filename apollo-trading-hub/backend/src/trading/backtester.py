@@ -131,7 +131,7 @@ def load_tick_csv(path: str) -> dict[date, tuple[np.ndarray, np.ndarray, np.ndar
 STRATEGY_DIR = Path(__file__).resolve().parents[3] / "strategies"
 
 
-SCRIPT_EXTS = (".py", ".mq5", ".ex5", ".csv")
+SCRIPT_EXTS = (".py", ".ipynb", ".pine", ".mq5", ".ex5", ".csv", ".tsv", ".json")
 
 
 def list_strategies() -> list[str]:
