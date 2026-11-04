@@ -1,10 +1,10 @@
 <#
- Closed Claw <-> Antigravity WSL sync.
+ Apollo Trading <-> Antigravity WSL sync.
  Clones (or fast-forward pulls) the shared repo into the WSL workspace Antigravity opens,
  then bootstraps it and registers the MCP server in .agents/mcp_config.json.
 
    powershell -ExecutionPolicy Bypass -File scripts\antigravity_wsl_sync.ps1
-   powershell -ExecutionPolicy Bypass -File scripts\antigravity_wsl_sync.ps1 -Branch claude/closed-claw-scaffold -Distro Ubuntu
+   powershell -ExecutionPolicy Bypass -File scripts\antigravity_wsl_sync.ps1 -Branch claude/apollo-trading-scaffold -Distro Ubuntu
 #>
 param(
   [string]$Repo = "https://github.com/jokingtim2468-max/app-again.git",
@@ -16,7 +16,7 @@ param(
 $ErrorActionPreference = "Stop"
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) { throw "WSL not installed. Run: wsl --install" }
 $d = @(); if ($Distro) { $d = @("-d", $Distro) }
-$boot = if ($NoBootstrap) { "" } else { "&& bash closed-claw/scripts/setup_dev.sh" }
+$boot = if ($NoBootstrap) { "" } else { "&& bash apollo-trading/scripts/setup_dev.sh" }
 $script = @"
 set -e
 command -v git >/dev/null || (sudo apt-get update && sudo apt-get install -y git)

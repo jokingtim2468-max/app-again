@@ -2,7 +2,7 @@
 
 Uses a seeded synthetic tick stream (regular-hours random walk + scheduled CPI/Core PCE/
 NFP/FOMC momentum bursts). Synthetic results validate rule logic only -- they are NOT
-evidence of real-market edge. Pass tick_csv for real data; drop strategies in closed-claw/strategies/.
+evidence of real-market edge. Pass tick_csv for real data; drop strategies in apollo-trading/strategies/.
 """
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def _plugin(name: str):
     path = STRATEGY_DIR / f"{name}.py"
     if not path.exists():
         return None
-    spec = importlib.util.spec_from_file_location(f"claw_strategy_{name}", path)
+    spec = importlib.util.spec_from_file_location(f"apollo_strategy_{name}", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     if not hasattr(mod, "generate_signals"):

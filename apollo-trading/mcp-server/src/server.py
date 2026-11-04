@@ -57,7 +57,7 @@ def run_backtest(strategy_name: str = "news_momentum", start_date: str = "2025-0
                  lot_size_micros: int = 20, event_filter: list[str] | None = None,
                  tick_csv: str | None = None, spread_multiplier: float = 1.0) -> dict:
     """MGC tick backtest under LucidFlex 150K EOD trailing rules with spread-expansion slippage.
-    strategy_name: built-in (news_momentum | news_fade | breakout) or any closed-claw/strategies/*.py.
+    strategy_name: built-in (news_momentum | news_fade | breakout) or any apollo-trading/strategies/*.py.
     tick_csv: real ticks (timestamp,price[,spread_ticks]); default is seeded synthetic data.
     spread_multiplier: stress-test factor applied to every spread/slippage."""
     return backtest_tools.run_backtest(strategy_name, start_date, end_date, initial_balance,

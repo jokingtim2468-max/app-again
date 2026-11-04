@@ -6,7 +6,7 @@ from pathlib import Path
 from _common import ROOT, check_port, merge_server, python_exe
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--workspace", default=str(ROOT), help="Antigravity workspace root (default: closed-claw/)")
+ap.add_argument("--workspace", default=str(ROOT), help="Antigravity workspace root (default: apollo-trading/)")
 ap.add_argument("--literal-cwd", action="store_true", help="write absolute cwd instead of ${workspaceFolder}")
 a = ap.parse_args()
 

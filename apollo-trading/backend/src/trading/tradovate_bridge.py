@@ -1,7 +1,7 @@
 """1 master -> N slave copy trader on Tradovate.
 
-Safety: runs in PAPER mode (fills simulated locally, no orders sent) unless CLAW_LIVE=1.
-With CLAW_LIVE=1 and TRADOVATE_ENV=demo it trades the Tradovate demo; TRADOVATE_ENV=live
+Safety: runs in PAPER mode (fills simulated locally, no orders sent) unless APOLLO_LIVE=1.
+With APOLLO_LIVE=1 and TRADOVATE_ENV=demo it trades the Tradovate demo; TRADOVATE_ENV=live
 targets real accounts. Every slave order passes RiskSentinel.validate_order first.
 
 Credentials come from env: TRADOVATE_USER, TRADOVATE_PASS, TRADOVATE_APP_ID,
@@ -22,7 +22,7 @@ import websockets
 
 from .risk_sentinel import RiskSentinel
 
-log = logging.getLogger("closed_claw.bridge")
+log = logging.getLogger("apollo_trading.bridge")
 
 ENDPOINTS = {
     "demo": ("https://demo.tradovateapi.com/v1", "wss://demo.tradovateapi.com/v1/websocket"),
@@ -43,7 +43,7 @@ class TradovateBridge:
     def __init__(self, sentinel: RiskSentinel, on_event: Callable[[dict], None] | None = None):
         self.sentinel = sentinel
         self.cfg = sentinel.config
-        self.live = os.getenv("CLAW_LIVE") == "1"
+        self.live = os.getenv("APOLLO_LIVE") == "1"
         self.env = os.getenv("TRADOVATE_ENV", "demo")
         self.rest, self.ws_url = ENDPOINTS[self.env]
         self.token: str | None = None
@@ -64,7 +64,7 @@ class TradovateBridge:
             return
         body = {
             "name": os.environ["TRADOVATE_USER"], "password": os.environ["TRADOVATE_PASS"],
-            "appId": os.getenv("TRADOVATE_APP_ID", "ClosedClaw"), "appVersion": "1.0",
+            "appId": os.getenv("TRADOVATE_APP_ID", "ApolloTrading"), "appVersion": "1.0",
             "cid": int(os.environ["TRADOVATE_CID"]), "sec": os.environ["TRADOVATE_SEC"],
             "deviceId": os.getenv("TRADOVATE_DEVICE_ID", str(uuid.uuid4())),
         }

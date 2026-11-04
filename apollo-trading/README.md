@@ -22,10 +22,10 @@ python -m pytest tests
 - Every tool is a widget: `widget-chart`, `widget-dom`, `widget-fleet`, `widget-tape`, `widget-backtest`, `widget-terminal`.
 - **Builder tab** (`#/builder`): catalog → *Add to Workspace*, 12-col snap grid with collision prevention, per-widget settings (⚙),
   maximize, close, presets (*Execution Focus*, *Risk Command*, *Quant Lab*), Save / Save as / Reset / Delete, Export & Import JSON, Edit ↔ Lock.
-- Layouts persist in `~/.closed-claw/layouts.json` (override with `CLAW_LAYOUT_FILE`). Agents write them via MCP `save_custom_layout`; the open UI hot-swaps.
+- Layouts persist in `~/.apollo-trading/layouts.json` (override with `APOLLO_LAYOUT_FILE`). Agents write them via MCP `save_custom_layout`; the open UI hot-swaps.
 
 ## Safety
-- **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `CLAW_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
+- **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
 - Tradovate credentials are **env vars only** (`TRADOVATE_*`), never in `fleet.json`.
 - Kill switch (top bar or per account) flattens and halts routing; killed accounts can be resumed, cashout/liquidated accounts cannot.
 - DOM brackets are server-side emulated: the backend watches last price and flattens the fleet at TP/SL. They do not exist at the broker,

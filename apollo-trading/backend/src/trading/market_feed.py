@@ -1,4 +1,4 @@
-"""MGC market data: Tradovate market-data WebSocket when CLAW_LIVE=1, otherwise a deterministic
+"""MGC market data: Tradovate market-data WebSocket when APOLLO_LIVE=1, otherwise a deterministic
 seeded simulator (labelled SIM everywhere). Produces trades, 1m bars and a 10-level DOM book."""
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class MarketFeed:
     def __init__(self, symbol: str, on_event: Callable[[dict], None], seed: int = 11):
         self.symbol = symbol
         self.on_event = on_event
-        self.live = os.getenv("CLAW_LIVE") == "1"
+        self.live = os.getenv("APOLLO_LIVE") == "1"
         self.rng = np.random.default_rng(seed)
         self.last = 2650.0
         self.bars: deque[dict] = deque(maxlen=3000)  # 1m bars

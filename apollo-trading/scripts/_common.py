@@ -42,7 +42,6 @@ def merge_server(cfg_path: Path, entry: dict) -> None:
             shutil.copy(cfg_path, backup)
             print(f"[warn] invalid JSON in {cfg_path}; backed up to {backup}")
     servers = data.setdefault("mcpServers", {})
-    servers.pop("closed-claw", None)  # migrate old name
     servers["apollo-trading"] = entry
     cfg_path.write_text(json.dumps(data, indent=2))
     print(f"[ok] registered apollo-trading in {cfg_path}")

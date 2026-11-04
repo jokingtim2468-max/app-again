@@ -6,7 +6,7 @@ from typing import Iterator
 import docker
 from docker.errors import DockerException, NotFound
 
-LABEL = "closed-claw.sandbox"
+LABEL = "apollo-trading.sandbox"
 
 
 class DockerManager:
