@@ -34,7 +34,57 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "standard",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 150,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              2000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": ""
+          },
+          {
+            "name": "consistency",
+            "cadence": "cycle",
+            "min_days": 3,
+            "min_day_profit": 0.01,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.4,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              3000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": "3 traded days, best day <= 40% of net profit"
+          }
+        ]
       },
       "100K": {
         "starting_balance": 100000,
@@ -52,7 +102,57 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "standard",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 150,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              3000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": ""
+          },
+          {
+            "name": "consistency",
+            "cadence": "cycle",
+            "min_days": 3,
+            "min_day_profit": 0.01,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.4,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              4000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": "3 traded days, best day <= 40% of net profit"
+          }
+        ]
       },
       "150K": {
         "starting_balance": 150000,
@@ -70,8 +170,59 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "standard",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 150,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              5000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": ""
+          },
+          {
+            "name": "consistency",
+            "cadence": "cycle",
+            "min_days": 3,
+            "min_day_profit": 0.01,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.4,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              6000
+            ],
+            "min_request": 125,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": {
+              "amount": 10000,
+              "split": 1.0
+            },
+            "profit_since_last": true,
+            "verified": true,
+            "note": "3 traded days, best day <= 40% of net profit"
+          }
+        ]
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://dashboard.topstep.com/dashboard/payouts"
 }

@@ -36,5 +36,6 @@
         "phase2_target": 5000
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://app.fundednext.com/"
 }

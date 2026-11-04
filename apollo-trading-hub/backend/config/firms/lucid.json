@@ -69,8 +69,32 @@
         "field_notes": {
           "eval_consistency_pct": "40% standard; set 0.50 if you bought the 50% consistency add-on",
           "cashout_opt_out_value_net": "OWNER-SUPPLIED: Lucid's help center says accounts move to LucidLive after payout 5; the $2,025 50% cashout election was not found in public docs - confirm on your dashboard"
-        }
+        },
+        "payouts": [
+          {
+            "name": "flex",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 250,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              3000
+            ],
+            "min_request": 500,
+            "buffer": null,
+            "max_payouts": 5,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": "Request any day once 5 days >= $250 in the cycle; caps don't grow with more payouts"
+          }
+        ]
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://dashboard.lucidtrading.com"
 }

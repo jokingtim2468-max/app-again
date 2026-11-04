@@ -1,6 +1,6 @@
 import { useLayoutStore, WIDGET_META, WidgetType } from '../../stores/useLayoutStore';
 
-const ICON: Record<WidgetType, string> = { 'widget-chart': '▁▃▅', 'widget-dom': '☰', 'widget-fleet': '⧉', 'widget-tape': '≋', 'widget-backtest': '∿', 'widget-terminal': '>_', 'widget-accounts': '⚇' };
+const ICON: Record<WidgetType, string> = { 'widget-chart': '▁▃▅', 'widget-dom': '☰', 'widget-fleet': '⧉', 'widget-tape': '≋', 'widget-backtest': '∿', 'widget-terminal': '>_', 'widget-accounts': '⚇', 'widget-payouts': '$' };
 
 export default function WidgetCatalog() {
   const { widgets, addWidget, locked } = useLayoutStore();

@@ -472,3 +472,74 @@ def test_size_level_unverified_flag():
     assert resolve_rules("takeprofittrader", "TEST", "50K")["verified"] is True
     assert resolve_rules("takeprofittrader", "TEST", "150K")["verified"] is False
     assert resolve_rules("ftmo", "CHALLENGE_2STEP", "100K")["sources"]
+
+
+# ---------------- payout policies ----------------
+def _funded(firm, plan, size, **kw):
+    s = RiskSentinel(_fleet(M, {"id": "X", "role": "copy", "firm": firm, "plan": plan, "size": size, "broker": "paper",
+                                "stage": "FUNDED", **kw}))
+    return s, s.accounts["X"]
+
+
+def _days(s, pnls):
+    for i, p in enumerate(pnls):
+        s.realize("X", p); s.end_of_day("X", f"2026-11-{i + 1:02d}")
+
+
+def test_lucid_payout_cycle_and_cap():
+    s, a = _funded("lucid", "FLEX", "150K")
+    _days(s, [800, 300, 200, 260, 900])           # only 4 days >= $250
+    e = s.payout_eligibility("X")
+    assert not e["eligible"] and "1 more day" in e["blockers"][0]
+    _days(s, [3000])                              # profit 5,460 -> 50% = 2,730 (< $3,000 cap)
+    e = s.payout_eligibility("X")
+    assert e["eligible"] and e["max_request"] == 2730 and e["net_to_you"] == 2457.0
+    s.approve_payout("X", 2730)
+    assert not s.payout_eligibility("X")["eligible"]   # new cycle needs 5 fresh qualifying days
+
+
+def test_apex_safety_net_caps_and_consistency():
+    s, a = _funded("apex", "EOD", "150K")
+    _days(s, [400, 400, 400, 400, 3000])         # best day 3,000 >= 50% of 4,600
+    e = s.payout_eligibility("X")
+    assert any("50%" in x for x in e["blockers"])
+    _days(s, [2000, 2000])
+    e = s.payout_eligibility("X")               # 8,600 profit, 4,100 safety net -> 4,500 above, capped 2,500 (payout #1)
+    assert e["eligible"] and e["max_request"] == 2500 and e["net_to_you"] == 2500   # 100% split
+
+
+def test_topstep_first_10k_at_100pct_and_paths():
+    s, a = _funded("topstep", "COMBINE", "150K")
+    _days(s, [200, 200, 200, 200, 200])
+    e = s.payout_eligibility("X")
+    assert e["path"] == "standard" and e["eligible"] and e["max_request"] == 500 and e["net_to_you"] == 500
+    s2, _ = _funded("topstep", "COMBINE", "150K", rule_overrides={"payout_path": "consistency"})
+    _days(s2, [1000, 1000, 1000])
+    assert s2.payout_eligibility("X")["eligible"]       # 3 days, best day 33% <= 40%
+
+
+def test_mffu_rapid_daily_above_buffer():
+    s, a = _funded("mffu", "RAPID", "50K")
+    _days(s, [1500, 1200])                       # 2,700 profit, buffer 2,100 -> 600 withdrawable
+    e = s.payout_eligibility("X")
+    assert e["eligible"] and e["max_request"] == 600
+    s.approve_payout("X", 600)
+    assert "already paid out today" in s.payout_eligibility("X")["blockers"]
+
+
+def test_request_pending_blocks_double_request_and_monthly_ceiling():
+    from backend.src.trading.payouts import monthly_ceiling
+    s, a = _funded("apex", "EOD", "150K")
+    s.request_payout("X", 2500)
+    assert any("already requested" in x for x in s.payout_eligibility("X")["blockers"])
+    m = monthly_ceiling(a)
+    assert m["payouts_per_month"] == 4 and m["gross_ceiling"] == 2500 + 3000 + 3000 + 3000 and m["lifetime_gross_cap"] == 20500
+    _, l = _funded("lucid", "FLEX", "150K")
+    assert monthly_ceiling(l)["gross_ceiling"] == 12000 and monthly_ceiling(l)["net_ceiling"] == 10800
+
+
+def test_apex_closes_after_six_payouts():
+    s, a = _funded("apex", "EOD", "50K")
+    for _ in range(6):
+        s.approve_payout("X", 500)
+    assert a.status == "CLOSED"

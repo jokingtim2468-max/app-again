@@ -33,7 +33,51 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "select_flex",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 150,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              3000
+            ],
+            "min_request": 500,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": true,
+            "verified": true,
+            "note": "Caps listed apply to accounts bought before 2026-09-01; newer caps not published"
+          },
+          {
+            "name": "select_daily",
+            "cadence": "daily",
+            "min_days": null,
+            "min_day_profit": null,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "cycle_profit_x2",
+            "pct": 1.0,
+            "caps": [
+              1250
+            ],
+            "min_request": 250,
+            "buffer": 2100,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": "Up to 2x profit since last request; you pick Flex or Daily when funded (set rule_overrides payout_path)"
+          }
+        ]
       },
       "100K": {
         "starting_balance": 100000,
@@ -51,7 +95,51 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "select_flex",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 200,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              4000
+            ],
+            "min_request": 500,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": true,
+            "verified": true,
+            "note": "Caps listed apply to accounts bought before 2026-09-01; newer caps not published"
+          },
+          {
+            "name": "select_daily",
+            "cadence": "daily",
+            "min_days": null,
+            "min_day_profit": null,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "cycle_profit_x2",
+            "pct": 1.0,
+            "caps": [
+              1750
+            ],
+            "min_request": 250,
+            "buffer": 2600,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": "Up to 2x profit since last request; you pick Flex or Daily when funded (set rule_overrides payout_path)"
+          }
+        ]
       },
       "150K": {
         "starting_balance": 150000,
@@ -69,7 +157,51 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "select_flex",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 250,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "profit",
+            "pct": 0.5,
+            "caps": [
+              5000
+            ],
+            "min_request": 500,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": true,
+            "verified": true,
+            "note": "Caps listed apply to accounts bought before 2026-09-01; newer caps not published"
+          },
+          {
+            "name": "select_daily",
+            "cadence": "daily",
+            "min_days": null,
+            "min_day_profit": null,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "cycle_profit_x2",
+            "pct": 1.0,
+            "caps": [
+              2500
+            ],
+            "min_request": 250,
+            "buffer": null,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": false,
+            "note": "Up to 2x profit since last request; you pick Flex or Daily when funded (set rule_overrides payout_path)"
+          }
+        ]
       }
     },
     "GROWTH": {
@@ -128,5 +260,6 @@
         "verified": true
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://app.tradeify.co/"
 }

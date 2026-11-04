@@ -52,6 +52,39 @@ async def autosave():
         await asyncio.to_thread(sentinel.save)
 
 
+_payout_ready: set[str] = set()
+
+
+async def notify(text: str, data: dict) -> None:
+    """Optional push to your phone: APOLLO_NOTIFY_WEBHOOK = Discord/Slack webhook or https://ntfy.sh/<topic>."""
+    url = os.getenv("APOLLO_NOTIFY_WEBHOOK")
+    if not url:
+        return
+    import httpx
+    body = {"content": text} if "discord" in url else {"text": text} if "slack" in url else None
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            await (c.post(url, json=body) if body else c.post(url, content=text.encode()))
+    except httpx.HTTPError as e:
+        _emit({"type": "notify_error", "error": str(e)})
+
+
+async def payout_watch():
+    """Semi-auto payouts: announce each account the moment it becomes eligible (once per eligibility window)."""
+    while True:
+        for aid in list(sentinel.accounts):
+            e = sentinel.payout_eligibility(aid)
+            if e.get("eligible") and aid not in _payout_ready:
+                _payout_ready.add(aid)
+                msg = (f"💰 Payout ready: {aid} ({e.get('firm')}) request ${e['max_request']:,.0f} "
+                       f"(≈${e['net_to_you']:,.0f} to you) → {e.get('dashboard_url') or 'firm dashboard'}")
+                _emit({"type": "payout_ready", **e})
+                await notify(msg, e)
+            elif not e.get("eligible"):
+                _payout_ready.discard(aid)
+        await asyncio.sleep(60)
+
+
 async def eod_scheduler():
     """Roll the MLL once per day at 17:00 ET settlement (EOD drawdown)."""
     while True:
@@ -92,7 +125,7 @@ async def mark_to_market():
 async def lifespan(app: FastAPI):
     global bridge_task
     bridge_task = asyncio.create_task(bridge.run())
-    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market())]
+    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), payout_watch())]
     yield
     for t in tasks:
         t.cancel()
@@ -269,6 +302,64 @@ def close_account(account_id: str, body: dict | None = None):
         raise HTTPException(409, "flatten the account first")
     sentinel.close_account(account_id, (body or {}).get("reason", "closed by operator"))
     return {"ok": True, "summary": sentinel.firm_summary().get(sentinel.accounts[account_id].firm)}
+
+
+@app.get("/api/payouts")
+def payouts_overview():
+    """Every account: can it request now, exact amount, net after split, blockers, and monthly ceiling."""
+    from .trading.payouts import monthly_ceiling
+    rows, firms_tot = [], {}
+    for aid, a in sentinel.accounts.items():
+        e = sentinel.payout_eligibility(aid)
+        m = monthly_ceiling(a) if a.stage == "FUNDED" and a.status != "CLOSED" else {"known": False}
+        rows.append({**e, "stage": a.stage, "status": a.status, "balance": round(a.closed_balance, 2),
+                     "paid_out": round(a.total_paid_out, 2), "monthly": m})
+        f = firms_tot.setdefault(a.firm, {"firm_name": a.rules.get("firm_name"), "ready_now_gross": 0.0, "ready_now_net": 0.0,
+                                          "month_ceiling_net": 0.0, "uncapped_accounts": 0, "paid_out": 0.0})
+        f["paid_out"] += a.total_paid_out
+        if e.get("eligible"):
+            f["ready_now_gross"] += e["max_request"]; f["ready_now_net"] += e["net_to_you"]
+        if m.get("known"):
+            if m["uncapped"]:
+                f["uncapped_accounts"] += 1
+            else:
+                f["month_ceiling_net"] += m["net_ceiling"] or 0
+    tot = {k: round(sum(f[k] for f in firms_tot.values()), 2) for k in ("ready_now_gross", "ready_now_net", "month_ceiling_net", "paid_out")}
+    return {"accounts": rows, "firms": firms_tot, "totals": tot}
+
+
+class PayoutAmt(BaseModel):
+    amount: float | None = None
+    reason: str = ""
+
+
+@app.post("/api/payouts/{account_id}/requested")
+def payout_requested(account_id: str, req: PayoutAmt):
+    if account_id not in sentinel.accounts:
+        raise HTTPException(404, "unknown account")
+    amt = req.amount or sentinel.payout_eligibility(account_id).get("max_request", 0)
+    return sentinel.request_payout(account_id, amt)
+
+
+@app.post("/api/payouts/{account_id}/paid")
+def payout_paid(account_id: str, req: PayoutAmt):
+    if account_id not in sentinel.accounts:
+        raise HTTPException(404, "unknown account")
+    a = sentinel.accounts[account_id]
+    amt = req.amount or a.payout_pending
+    if not amt:
+        raise HTTPException(400, "no amount: pass amount or mark a request first")
+    res = sentinel.approve_payout(account_id, amt)
+    if "graduation" in res:
+        _emit({"type": "graduation_alert", **res["graduation"]})
+    _payout_ready.discard(account_id)
+    return res
+
+
+@app.post("/api/payouts/{account_id}/rejected")
+def payout_rejected(account_id: str, req: PayoutAmt):
+    sentinel.reject_payout(account_id, req.reason)
+    return {"ok": True}
 
 
 @app.get("/api/firms")

@@ -59,6 +59,7 @@ def resolve_rules(firm: str, plan: str, size: str, overrides: dict | None = None
     size_verified = r.pop("verified", True)  # a single size can be flagged unverified inside a verified firm
     r["verified"] = bool(d.get("verified", False)) and bool(size_verified) and not (overrides or {}).get("_unverified_override", False)
     r["verified_on"], r["sources"] = d.get("verified_on"), d.get("sources", [])
+    r["payout_dashboard_url"] = d.get("payout_dashboard_url")
     r["contract"] = r.get("contract", d.get("contract", "MGC"))
     r.setdefault("max_funded_accounts", d.get("max_funded_accounts"))  # firm-wide cap on simultaneously funded accounts
     r.setdefault("park_buffer_usd", d.get("park_buffer_usd"))
@@ -119,6 +120,10 @@ class AccountState:
     purchased_at: str | None = None
     passed_at: str | None = None
     failed_at: str | None = None
+    cycle_start_balance: float = 150000.0          # balance at funding / last payout
+    cycle_day_pnls: list = field(default_factory=list)  # each session's PnL since last payout
+    last_payout_date: str | None = None
+    payout_pending: float = 0.0                    # requested at the firm, awaiting approval
     firm: str = "lucid"
     plan: str = "FLEX"
     size: str = "150K"
@@ -202,6 +207,7 @@ class RiskSentinel:
     def _fresh(aid: str, rules: dict, stage: Stage = "EVALUATION") -> AccountState:
         start = float(rules["starting_balance"])
         return AccountState(account_id=aid, stage=stage, starting_balance=start, closed_balance=start, day_start_balance=start,
+                            cycle_start_balance=start,
                             peak_equity=start, mll=start - rules["starting_drawdown"], firm=rules["firm"], plan=rules["plan"],
                             size=rules["size"], contract=rules["contract"], verified=rules["verified"], rules=rules)
 
@@ -325,6 +331,8 @@ class RiskSentinel:
         r = acct.rules
         day_pnl = acct.closed_balance - acct.day_start_balance
         acct.best_day_profit = max(acct.best_day_profit, day_pnl)
+        if acct.stage == "FUNDED" and day_pnl != 0:
+            acct.cycle_day_pnls.append(round(day_pnl, 2))
         if r.get("qualifying_day_threshold") and day_pnl >= r["qualifying_day_threshold"]:
             acct.qualifying_days += 1
         if r.get("drawdown_type") == "END_OF_DAY" and not acct.mll_locked:
@@ -355,6 +363,12 @@ class RiskSentinel:
     def payout_eligibility(self, account_id: str) -> dict:
         acct = self.accounts[account_id]
         r = acct.rules
+        if r.get("payouts"):
+            from .payouts import evaluate
+            e = evaluate(acct)
+            e["qualifying_days"] = e.get("qualifying_days", acct.qualifying_days)
+            e["payouts_approved"], e["rules_known"] = acct.payouts_approved, True
+            return e
         need = r.get("qualifying_days_required")
         eligible = (acct.stage == "FUNDED" and need is not None and acct.qualifying_days >= need
                     and acct.closed_profit > 0 and not acct.halted and not acct.liquidated)
@@ -371,6 +385,8 @@ class RiskSentinel:
         acct.payouts_approved += 1
         acct.qualifying_days = 0
         acct.day_start_balance = acct.closed_balance
+        acct.cycle_start_balance, acct.cycle_day_pnls = acct.closed_balance, []
+        acct.last_payout_date, acct.payout_pending = datetime.now(ET).date().isoformat(), 0.0
         if acct.rules.get("lock_mll_on_first_payout") and acct.rules.get("mll_lock_level") and not acct.mll_locked:
             acct.mll, acct.mll_locked = acct.rules["mll_lock_level"], True  # LucidFlex: payout locks MLL at start+100
         result = {"account_id": account_id, "payout_number": acct.payouts_approved, "amount": amount}
@@ -378,7 +394,24 @@ class RiskSentinel:
         grad = acct.rules.get("max_payouts_before_graduation")
         if grad and acct.payouts_approved >= grad:
             result["graduation"] = self.trigger_graduation(account_id)
+        else:
+            from .payouts import path_for
+            p = path_for(acct.rules)
+            if p and p.get("max_payouts") and acct.payouts_approved >= p["max_payouts"]:
+                self.close_account(account_id, f"max {p['max_payouts']} payouts reached (firm closes the account)")
         return result
+
+    def request_payout(self, account_id: str, amount: float) -> dict:
+        """Operator submitted a request on the firm dashboard: hold the amount until it's approved."""
+        acct = self.accounts[account_id]
+        acct.payout_pending = float(amount)
+        self.log(account_id, "PAYOUT_REQUESTED", amount=amount)
+        return {"account_id": account_id, "pending": amount}
+
+    def reject_payout(self, account_id: str, reason: str = "") -> None:
+        acct = self.accounts[account_id]
+        amt, acct.payout_pending = acct.payout_pending, 0.0
+        self.log(account_id, "PAYOUT_REJECTED", amount=amt, reason=reason)
 
     def trigger_graduation(self, account_id: str) -> dict:
         acct = self.accounts[account_id]
@@ -488,6 +521,7 @@ class RiskSentinel:
         start = a.starting_balance
         a.closed_balance = a.day_start_balance = a.peak_equity = start
         a.mll, a.mll_locked, a.best_day_profit, a.qualifying_days = start - a.rules["starting_drawdown"], False, 0.0, 0
+        a.cycle_start_balance, a.cycle_day_pnls = start, []
         a.parked, a.status = False, ("KILLED" if a.halted else "ACTIVE")
         self.log(aid, "PASSED", session=session_date, note="now FUNDED; if the firm gave a new account ID, update broker_account")
 

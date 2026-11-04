@@ -35,7 +35,35 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "eod_pa",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 250,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.5,
+            "basis": "above_buffer",
+            "pct": 1.0,
+            "caps": [
+              1500,
+              1500,
+              2000,
+              2500,
+              2500,
+              3000
+            ],
+            "min_request": 500,
+            "buffer": 2100,
+            "max_payouts": 6,
+            "split": 1.0,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": ""
+          }
+        ]
       },
       "100K": {
         "starting_balance": 100000,
@@ -53,7 +81,35 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "eod_pa",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 300,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.5,
+            "basis": "above_buffer",
+            "pct": 1.0,
+            "caps": [
+              2000,
+              2500,
+              2500,
+              3000,
+              4000,
+              4000
+            ],
+            "min_request": 500,
+            "buffer": 3100,
+            "max_payouts": 6,
+            "split": 1.0,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": ""
+          }
+        ]
       },
       "150K": {
         "starting_balance": 150000,
@@ -71,7 +127,35 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "eod_pa",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 350,
+            "interval_days": null,
+            "cycle_consistency_pct": 0.5,
+            "basis": "above_buffer",
+            "pct": 1.0,
+            "caps": [
+              2500,
+              3000,
+              3000,
+              3000,
+              4000,
+              5000
+            ],
+            "min_request": 500,
+            "buffer": 4100,
+            "max_payouts": 6,
+            "split": 1.0,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": true,
+            "note": "Safety net (drawdown + $100) stays for the life of the PA; PA closes after payout 6"
+          }
+        ]
       }
     },
     "INTRADAY": {
@@ -130,5 +214,6 @@
         "verified": true
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://apextraderfunding.com/member/"
 }

@@ -89,8 +89,35 @@
         "max_payout_per_request": null,
         "max_payouts_before_graduation": null,
         "cashout_opt_out_value_net": null,
-        "verified": true
+        "verified": true,
+        "payouts": [
+          {
+            "name": "master",
+            "cadence": "cycle",
+            "min_days": 5,
+            "min_day_profit": 0.01,
+            "interval_days": null,
+            "cycle_consistency_pct": null,
+            "basis": "above_buffer",
+            "pct": 1.0,
+            "caps": [
+              3000,
+              3000,
+              3000,
+              3500
+            ],
+            "min_request": 1000,
+            "buffer": 5500,
+            "max_payouts": null,
+            "split": 0.9,
+            "first_split": null,
+            "profit_since_last": false,
+            "verified": false,
+            "note": "Caps from Bulenox help center; cadence/min days not confirmed"
+          }
+        ]
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://bulenox.com/member/"
 }

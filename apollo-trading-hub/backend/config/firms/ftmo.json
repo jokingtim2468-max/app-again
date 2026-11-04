@@ -55,5 +55,6 @@
         "phase2_target": 10000
       }
     }
-  }
+  },
+  "payout_dashboard_url": "https://trader.ftmo.com/"
 }

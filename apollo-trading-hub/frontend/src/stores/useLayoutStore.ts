@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { api, onEvent } from '../api';
 
-export type WidgetType = 'widget-chart' | 'widget-dom' | 'widget-fleet' | 'widget-tape' | 'widget-backtest' | 'widget-terminal' | 'widget-accounts';
+export type WidgetType = 'widget-chart' | 'widget-dom' | 'widget-fleet' | 'widget-tape' | 'widget-backtest' | 'widget-terminal' | 'widget-accounts' | 'widget-payouts';
 export interface WidgetItem { i: string; type: WidgetType; x: number; y: number; w: number; h: number; settings: Record<string, unknown> }
 export interface SavedLayout { widgets: WidgetItem[]; updated_at?: string; source?: string }
 
@@ -12,6 +12,7 @@ export const WIDGET_META: Record<WidgetType, { name: string; desc: string; w: nu
   'widget-tape': { name: 'Time & Sales Tape', desc: 'Scrolling trade prints with block filter (≥10 lots by default).', w: 4, h: 10, minW: 2, minH: 4, settings: { min_size: 10 } },
   'widget-backtest': { name: 'Tick Backtest Canvas', desc: 'Equity vs MLL, underwater drawdown, spread-slippage stress tester.', w: 7, h: 12, minW: 4, minH: 7, settings: {} },
   'widget-accounts': { name: 'Account Manager', desc: 'Add accounts from any prop firm or broker: firm rules, platform, copy ratio, master/copy.', w: 12, h: 14, minW: 6, minH: 8, settings: {} },
+  'widget-payouts': { name: 'Payout Center', desc: 'Which accounts can withdraw now, exact amount, net after split, monthly ceilings, one-click to the firm payout page.', w: 12, h: 14, minW: 6, minH: 8, settings: {} },
   'widget-terminal': { name: 'VM Sandbox Shell', desc: 'xterm.js shell into an isolated Docker container.', w: 5, h: 10, minW: 3, minH: 5, settings: {} },
 };
 
