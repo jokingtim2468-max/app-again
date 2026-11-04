@@ -20,6 +20,8 @@ class MarketFeed:
         self.symbol = symbol
         self.on_event = on_event
         self.live = os.getenv("APOLLO_LIVE") == "1"
+        self.mode = os.getenv("APOLLO_FEED", "tradovate" if self.live else "sim").lower()  # sim | tradovate | mt5
+        self.mt5_symbol = os.getenv("APOLLO_MT5_SYMBOL", "XAUUSD")
         self.rng = np.random.default_rng(seed)
         self.last = 2650.0
         self.bars: deque[dict] = deque(maxlen=3000)  # 1m bars
@@ -30,7 +32,7 @@ class MarketFeed:
 
     @property
     def source(self) -> str:
-        return "TRADOVATE" if self.live else "SIM"
+        return {"tradovate": "TRADOVATE", "mt5": f"MT5:{self.mt5_symbol}"}.get(self.mode, "SIM")
 
     # ---------- shared ----------
     def _on_trade(self, price: float, size: int, side: str, ts: float) -> None:
@@ -156,5 +158,43 @@ class MarketFeed:
                          "asks": [[a["price"], a["size"]] for a in dom.get("offers", [])[:10]]}
             self.on_event({"type": "dom", **self.book})
 
+    # ---------- MT5 (live) ----------
+    async def _run_mt5(self) -> None:
+        from datetime import datetime, timedelta, timezone
+        from ..data import mt5_data
+        c = mt5_data.client()
+        try:
+            now = datetime.now(timezone.utc)
+            r = await asyncio.to_thread(c.rates, self.mt5_symbol, "1m", now - timedelta(days=4), now)
+            self.bars.clear()
+            for i, t in enumerate(r["time"]):
+                self.bars.append({"time": int(t), "open": r["open"][i], "high": r["high"][i], "low": r["low"][i],
+                                  "close": r["close"][i], "volume": int(r["volume"][i]), "delta": 0})
+            self.last = self.bars[-1]["close"]
+        except Exception as e:
+            self.on_event({"type": "feed_error", "error": str(e)})
+        last_t, n = 0.0, 0
+        while True:
+            try:
+                t = await asyncio.to_thread(c.tick, self.mt5_symbol)
+                if t["time"] != last_t:
+                    side = "B" if t["last"] >= self.last else "S"
+                    self._on_trade(round(t["last"], 2), max(1, t["volume"]), side, t["time"])
+                    last_t = t["time"]
+                n += 1
+                if n % 4 == 0:
+                    book = await asyncio.to_thread(c.book, self.mt5_symbol)
+                    if not book["bids"]:  # CFD brokers usually have no depth: synthesize top of book
+                        book = {"bids": [[round(t["bid"], 2), 1]], "asks": [[round(t["ask"], 2), 1]]}
+                    self.book = book
+                    self.on_event({"type": "dom", **self.book})
+            except Exception as e:
+                self.on_event({"type": "feed_error", "error": str(e)})
+                await asyncio.sleep(3)
+            await asyncio.sleep(0.25)
+
     async def run(self) -> None:
-        await (self._run_live() if self.live else self._run_sim())
+        if self.mode == "mt5":
+            await self._run_mt5()
+        else:
+            await (self._run_live() if self.mode == "tradovate" else self._run_sim())

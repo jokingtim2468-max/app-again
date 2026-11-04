@@ -40,6 +40,14 @@ class BacktestConfig:
     event_filter: list[str] | None = None
     seed: int = 7
     spread_multiplier: float = 1.0  # stress test: scale all spreads/slippage
+    data_source: str = "synthetic"  # synthetic | csv | mt5
+    symbol: str = "XAUUSD"          # MT5 symbol used as the gold price source
+    timeframe: str = "1m"           # bar size for adapted (bar-driven) scripts
+    data_path: str | None = None    # CSV of bars or ticks when data_source=csv
+    script_path: str | None = None  # any user script; overrides strategy_name lookup
+    params: dict | None = None      # passed to the user's strategy
+    contract: str = "MGC"
+    mt5_model: str = "every_tick_real"
     tick_csv: str | None = None  # CSV with timestamp,price (ET). Overrides synthetic data.
     stage: str = "EVALUATION"
 
@@ -123,9 +131,60 @@ def load_tick_csv(path: str) -> dict[date, tuple[np.ndarray, np.ndarray, np.ndar
 STRATEGY_DIR = Path(__file__).resolve().parents[3] / "strategies"
 
 
+SCRIPT_EXTS = (".py", ".mq5", ".ex5", ".csv")
+
+
 def list_strategies() -> list[str]:
-    plugins = [p.stem for p in STRATEGY_DIR.glob("*.py") if not p.name.startswith("_")]
+    plugins = [p.stem for p in STRATEGY_DIR.iterdir() if p.suffix.lower() in SCRIPT_EXTS and not p.name.startswith("_")] \
+        if STRATEGY_DIR.exists() else []
     return sorted(set(STRATEGIES) | set(plugins))
+
+
+def strategy_path(name: str) -> Path | None:
+    for ext in SCRIPT_EXTS:
+        p = STRATEGY_DIR / f"{name}{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def run_any(cfg: BacktestConfig) -> dict:
+    """Entry point for UI/API/MCP: any script x any data source."""
+    from ..data.sources import load_bars, load_tick_days
+    from .adapter import adapt
+    from .bar_engine import BarConfig, run_bars
+
+    if cfg.tick_csv and cfg.data_source == "synthetic":  # back-compat
+        cfg.data_source, cfg.data_path = "csv", cfg.tick_csv
+    path = Path(cfg.script_path).expanduser() if cfg.script_path else (None if cfg.strategy_name in STRATEGIES else strategy_path(cfg.strategy_name))
+    st = adapt(path, cfg.params) if path else None
+    bar_cfg = BarConfig(initial_balance=cfg.initial_balance, lot_size_micros=cfg.lot_size_micros, stage=cfg.stage,
+                        contract=cfg.contract, spread_multiplier=cfg.spread_multiplier, label=cfg.strategy_name)
+
+    if st is None or st.style == "native_tick":
+        if cfg.data_source != "synthetic":
+            cfg.tick_days = load_tick_days(cfg.data_source, cfg.start_date, cfg.end_date, cfg.symbol, cfg.data_path)  # type: ignore[attr-defined]
+            if not cfg.tick_days:  # type: ignore[attr-defined]
+                raise ValueError("no ticks between 08:00-17:00 ET in that range")
+        res = run_backtest(cfg, plugin=st._fn if st else None)
+        res["engine"] = "tick"
+        if st:
+            res["adapter"] = st.describe()
+        return res
+    if st.style == "mql5":
+        from .mt5_tester import replay_deals, run_tester
+        deals = run_tester(st.source_path, cfg.symbol, cfg.start_date, cfg.end_date, cfg.timeframe, cfg.mt5_model,
+                           cfg.initial_balance, cfg.params)
+        res = replay_deals(deals, bar_cfg)
+        res["adapter"] = st.describe()
+        return res
+    bars = load_bars(cfg.data_source, cfg.start_date, cfg.end_date, cfg.timeframe, cfg.symbol, cfg.data_path, cfg.seed)
+    target = st.run(bars)
+    st.lookahead_check(bars, target)
+    res = run_bars(bars, target, bar_cfg)
+    res["adapter"] = st.describe()
+    res["data_source"] = f"{cfg.data_source}:{cfg.symbol if cfg.data_source == 'mt5' else cfg.data_path or 'seeded'}:{cfg.timeframe}"
+    return res
 
 
 def _plugin(name: str):
@@ -141,9 +200,9 @@ def _plugin(name: str):
     return mod.generate_signals
 
 
-def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict], spread=None):
+def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict], spread=None, plugin=None):
     """Return list of (entry_idx, side, exit_idx)."""
-    plugin = _plugin(strategy) if strategy not in STRATEGIES else None
+    plugin = plugin or (_plugin(strategy) if strategy not in STRATEGIES else None)
     if plugin:
         raw = plugin(secs, px, spread if spread is not None else np.ones(px.size), events)
         return [(int(e), int(np.sign(sd)), int(min(x, px.size - 1))) for e, sd, x in raw
@@ -177,7 +236,7 @@ def _signals(strategy: str, secs: np.ndarray, px: np.ndarray, events: list[dict]
     return trades
 
 
-def run_backtest(cfg: BacktestConfig) -> dict:
+def run_backtest(cfg: BacktestConfig, plugin=None) -> dict:
     rules = load_fleet_config()["rules"]
     sentinel = RiskSentinel()
     acct = sentinel.new_account("BACKTEST", stage=cfg.stage)  # type: ignore[arg-type]
@@ -188,7 +247,7 @@ def run_backtest(cfg: BacktestConfig) -> dict:
     start, end = date.fromisoformat(cfg.start_date), date.fromisoformat(cfg.end_date)
     sched = build_news_schedule(start, end, cfg.event_filter)
     rng = np.random.default_rng(cfg.seed)
-    real = load_tick_csv(cfg.tick_csv) if cfg.tick_csv else None
+    real = getattr(cfg, "tick_days", None) or (load_tick_csv(cfg.tick_csv) if cfg.tick_csv else None)
     px_open = 2650.0
     pnl_list, equity_curve, news_slips = [], [], []
     liquidations, payouts = 0, 0
@@ -212,7 +271,7 @@ def run_backtest(cfg: BacktestConfig) -> dict:
             # restart a fresh account after liquidation (models buying a reset)
             acct = sentinel.new_account("BACKTEST", stage=cfg.stage)  # type: ignore[arg-type]
             sentinel.accounts["BACKTEST"] = acct
-        for e_idx, side, x_idx in _signals(cfg.strategy_name, secs, px, day_events, spread):
+        for e_idx, side, x_idx in _signals(cfg.strategy_name, secs, px, day_events, spread, plugin):
             cap = funded_max_contracts(acct.closed_profit) if cfg.stage == "FUNDED" else 100
             qty = min(cfg.lot_size_micros, cap)
             spread = spread * cfg.spread_multiplier if cfg.spread_multiplier != 1.0 else spread
@@ -266,5 +325,5 @@ def run_backtest(cfg: BacktestConfig) -> dict:
         "liquidated_accounts_count": liquidations,
         "news_slippage": news_slips[-50:],
         "equity_curve": equity_curve,
-        "data_source": cfg.tick_csv or "synthetic_seeded",
+        "data_source": (f"{cfg.data_source}:{cfg.symbol}" if cfg.data_source == "mt5" else cfg.data_path or cfg.tick_csv) if getattr(cfg, "tick_days", None) or cfg.tick_csv else "synthetic_seeded",
     }

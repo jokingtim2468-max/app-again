@@ -1,4 +1,5 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Props {
   title: string; children: ReactNode; locked: boolean; maximized: boolean;
@@ -8,7 +9,12 @@ interface Props {
 /** Universal card chrome: drag-handle header (#12151E, 1px #212636), maximize, settings, close. */
 export default function WidgetContainer({ title, children, locked, maximized, onClose, onToggleMax, settings, badge }: Props) {
   const [showSettings, setShowSettings] = useState(false);
-  return (
+  useEffect(() => {
+    if (!maximized) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onToggleMax();
+    window.addEventListener('keydown', esc); return () => window.removeEventListener('keydown', esc);
+  }, [maximized, onToggleMax]);
+  const card = (
     <div className={`card${maximized ? ' max' : ''}`}>
       <div className={`card-head${locked || maximized ? '' : ' draggable drag-handle'}`}>
         {!locked && !maximized && <span className="mut" aria-hidden style={{ letterSpacing: -2, fontSize: 11 }}>⋮⋮</span>}
@@ -22,4 +28,6 @@ export default function WidgetContainer({ title, children, locked, maximized, on
       <div className="card-body no-drag">{children}</div>
     </div>
   );
+  // grid items are CSS-transformed, which traps position:fixed; portal the maximized card to <body>
+  return maximized ? <>{createPortal(card, document.body)}<div className="card empty mut">Maximized · Esc to restore</div></> : card;
 }

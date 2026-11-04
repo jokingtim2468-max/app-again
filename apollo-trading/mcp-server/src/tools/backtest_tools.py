@@ -1,12 +1,9 @@
 from .. import config  # noqa: F401  (adds repo root to sys.path)
-from backend.src.trading.backtester import BacktestConfig, run_backtest as _run
+from backend.src.trading.backtester import BacktestConfig, run_any
 
 
-def run_backtest(strategy_name: str = "news_momentum", start_date: str = "2025-01-01",
-                 end_date: str = "2025-06-30", initial_balance: float = 150000.0,
-                 lot_size_micros: int = 20, event_filter: list[str] | None = None,
-                 tick_csv: str | None = None, spread_multiplier: float = 1.0) -> dict:
-    res = _run(BacktestConfig(strategy_name, start_date, end_date, initial_balance, lot_size_micros, event_filter, tick_csv=tick_csv,
-                               spread_multiplier=spread_multiplier))
-    res["equity_curve"] = res["equity_curve"][-60:]  # keep MCP payload small
+def run_backtest(**kw) -> dict:
+    res = run_any(BacktestConfig(**{k: v for k, v in kw.items() if v is not None}))
+    res["equity_curve"] = res["equity_curve"][-60:]   # keep MCP payload small
+    res["trade_log"] = res.get("trade_log", [])[-30:]
     return res

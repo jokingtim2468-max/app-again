@@ -12,7 +12,10 @@ from pydantic import BaseModel
 
 from . import layouts
 from .containers.docker_manager import DockerManager
-from .trading.backtester import BacktestConfig, list_strategies, run_backtest
+from .data import mt5_data
+from .trading.adapter import AdapterError, adapt
+from .trading.backtester import BacktestConfig, list_strategies, run_any, strategy_path
+from .trading.forward_test import ForwardTester
 from .trading.market_feed import MarketFeed
 from .trading.risk_sentinel import ET, RiskSentinel
 from .trading.tradovate_bridge import Fill, TradovateBridge
@@ -35,6 +38,7 @@ bridge = TradovateBridge(sentinel, on_event=_emit)
 feed = MarketFeed(SYMBOL, on_event=_emit)
 feed.token_getter = lambda: bridge.token
 docker_mgr = DockerManager()
+forward = ForwardTester(_emit, sim_feed=feed)
 
 
 async def autosave():
@@ -96,6 +100,23 @@ class BacktestReq(BaseModel):
     stage: str = "EVALUATION"
     tick_csv: str | None = None
     spread_multiplier: float = 1.0
+    data_source: str = "synthetic"
+    symbol: str = "XAUUSD"
+    timeframe: str = "1m"
+    data_path: str | None = None
+    script_path: str | None = None
+    params: dict | None = None
+    contract: str = "MGC"
+    mt5_model: str = "every_tick_real"
+
+
+class ForwardReq(BaseModel):
+    script: str
+    source: str = "mt5"
+    symbol: str = "XAUUSD"
+    timeframe: str = "1m"
+    lot_size_micros: int = 5
+    params: dict | None = None
 
 
 class OrderReq(BaseModel):
@@ -269,9 +290,46 @@ def strategies():
 @app.post("/api/backtest")
 async def backtest(req: BacktestReq):
     try:
-        return await asyncio.to_thread(run_backtest, BacktestConfig(**req.model_dump()))
-    except (ValueError, FileNotFoundError) as e:
+        return await asyncio.to_thread(run_any, BacktestConfig(**req.model_dump()))
+    except (ValueError, FileNotFoundError, RuntimeError) as e:  # adapter / data / MT5 errors -> readable 400
+        raise HTTPException(400, f"{type(e).__name__}: {e}")
+
+
+def _resolve(script: str) -> str:
+    p = strategy_path(script)
+    return str(p) if p else script
+
+
+@app.post("/api/strategies/inspect")
+def inspect_script(body: dict):
+    """Show how a script will be adapted (no backtest run)."""
+    try:
+        return adapt(_resolve(body["script"]), body.get("params")).describe()
+    except (AdapterError, KeyError) as e:
         raise HTTPException(400, str(e))
+
+
+@app.get("/api/mt5/status")
+async def mt5_status():
+    return await asyncio.to_thread(mt5_data.status)
+
+
+@app.post("/api/forward/start")
+async def forward_start(req: ForwardReq):
+    try:
+        return await forward.start(_resolve(req.script), req.source, req.symbol, req.timeframe, req.lot_size_micros, params=req.params)
+    except (AdapterError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/forward/stop")
+async def forward_stop():
+    return await forward.stop()
+
+
+@app.get("/api/forward/status")
+def forward_status():
+    return forward.status()
 
 
 # ---------------- layouts ----------------

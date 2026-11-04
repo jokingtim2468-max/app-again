@@ -8,6 +8,7 @@ if not exist .venv python -m venv .venv
 call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r backend\requirements.txt -r mcp-server\requirements.txt || exit /b 1
+REM MetaTrader5 is installed by requirements on Windows. For Antigravity in WSL also run: python scripts\mt5_bridge.py
 pushd frontend && call npm install && popd
 python scripts\setup_antigravity.py
 python scripts\setup_claude.py
