@@ -745,14 +745,59 @@ bots = BotManager({
 
 @app.get("/api/settings/bots")
 def get_bot_settings():
-    return {"settings": bot_settings.mask(bot_settings.load()), "status": bots.status(),
-            "notify_kinds": bot_settings.NOTIFY_KINDS, "commands": bots.engine.menu(),
+    cfg = bot_settings.load()
+    return {"settings": bot_settings.mask(cfg), "status": bots.status(), "links": cfg.get("links", []),
+            "notify_kinds": bot_settings.NOTIFY_KINDS, "commands": bots.router.menu(),
             "variables": sorted(bots.engine.variables())}
+
+
+@app.post("/api/settings/bots/code")
+async def bot_code(body: dict | None = None):
+    """Verification code to type in Discord/Telegram as /verify CODE (valid 10 minutes)."""
+    if not (bots.bots or bots.relay):
+        raise HTTPException(409, "start a bot first: enable your bot (own token) or set the relay URL, then Save")
+    return await bots.new_code(bool((body or {}).get("grant_control")))
+
+
+@app.get("/api/settings/bots/links/recent")
+def recent_links():
+    return bots.recent_links[-5:]
+
+
+@app.get("/api/settings/bots/channels")
+async def bot_channels(guild_id: str):
+    try:
+        return await bots.guild_channels(guild_id)
+    except Exception as e:
+        raise HTTPException(502, f"couldn't list channels: {e}")
+
+
+@app.put("/api/settings/bots/links/{link_id}")
+def update_link(link_id: str, body: dict):
+    """Set where alerts go for a linked server/chat: {destinations: {channel_or_chat_id: {name, kinds: [...]}}}."""
+    cfg = bot_settings.load()
+    for l in cfg.get("links", []):
+        if l["id"] == link_id:
+            dest = body.get("destinations") or {}
+            bad = [k for d in dest.values() for k in d.get("kinds", []) if k not in bot_settings.NOTIFY_KINDS]
+            if bad:
+                raise HTTPException(400, f"unknown alert kinds {bad}")
+            l["destinations"] = dest
+            bot_settings.save(cfg)
+            return l
+    raise HTTPException(404, "link not found")
+
+
+@app.delete("/api/settings/bots/links/{link_id}")
+async def delete_link(link_id: str):
+    await bots.unlink(link_id)
+    return {"ok": True}
 
 
 @app.put("/api/settings/bots")
 async def put_bot_settings(body: dict):
     """Save settings and relaunch the bots (re-registers custom commands in Telegram's menu / Discord slash list)."""
+    body.pop("links", None)  # links only change via /verify and the link endpoints (avoids overwriting a fresh link)
     try:
         bot_settings.save(body)
     except ValueError as e:
@@ -769,8 +814,7 @@ async def test_bots(body: dict | None = None):
     cmd = (body or {}).get("command")
     out = {"preview": await bots.engine.run(cmd, Ctx("preview", "app", True))} if cmd else {}
     if (body or {}).get("send_alert"):
-        await bots.broadcast("✅ Apollo test alert: bots are connected.")
-        out["sent"] = list(bots.bots)
+        out["sent"] = await bots.broadcast("startup", "✅ Apollo test alert: you're connected.")
     return {**out, "status": bots.status()}
 
 

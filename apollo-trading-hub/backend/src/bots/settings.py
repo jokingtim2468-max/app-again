@@ -12,11 +12,16 @@ from pathlib import Path
 
 PATH = Path(os.getenv("APOLLO_SETTINGS", Path(__file__).resolve().parents[2] / "state" / "settings.json"))
 _lock = threading.Lock()
-SECRET_KEYS = {"token"}
+SECRET_KEYS = {"token", "secret"}
 NOTIFY_KINDS = ["startup", "payout_ready", "PASSED", "FAILED", "PARKED", "UNPARKED", "TARGET_HIT", "DAILY_LIMIT_HIT",
                 "PAYOUT", "kill_switch", "graduation_alert", "route_error"]
 
 DEFAULTS = {
+    # "relay": use the shared Apollo bot (users just add it and /verify); "own": run your own bot token in this app
+    "mode": "own",
+    "relay": {"url": "", "access_key": "", "install_id": "", "secret": ""},
+    "links": [],
+    "tutorial_done": False,
     "telegram": {"enabled": False, "token": "", "alert_chat_ids": [], "allowed_user_ids": [], "control_user_ids": []},
     "discord": {"enabled": False, "token": "", "alert_channel_ids": [], "allowed_user_ids": [], "control_user_ids": [],
                 "prefix": "!", "guild_id": ""},
@@ -48,6 +53,8 @@ def mask(cfg: dict) -> dict:
         t = c[bot].get("token") or ""
         c[bot]["token"] = (t[:4] + "…" + t[-4:]) if len(t) > 12 else ("set" if t else "")
         c[bot]["token_set"] = bool(t)
+    c["relay"]["secret"] = "set" if c["relay"].get("secret") else ""
+    c["relay"]["access_key"] = "set" if c["relay"].get("access_key") else ""
     return c
 
 
@@ -57,13 +64,25 @@ def save(new: dict) -> dict:
         t = (new.get(bot) or {}).get("token")
         if t is None or "…" in str(t) or t == "set":
             new.setdefault(bot, {})["token"] = cur[bot]["token"]
+    rs = (new.get("relay") or {}).get("secret")
+    if "relay" in new and (rs is None or rs == "set"):
+        new["relay"]["secret"] = cur["relay"]["secret"]
+    if "relay" in new and new["relay"].get("access_key") in (None, "set"):
+        new["relay"]["access_key"] = cur["relay"].get("access_key", "")
+    if "relay" in new and new["relay"].get("url", cur["relay"]["url"]) != cur["relay"]["url"]:
+        new["relay"].update(install_id="", secret="")  # new relay -> register again
+    if "links" not in new:
+        new["links"] = cur.get("links", [])
     for c in new.get("custom_commands", []):
         c["name"] = str(c["name"]).strip().lstrip("/!").lower()
         if not c["name"].replace("_", "").isalnum() or len(c["name"]) > 32:
             raise ValueError(f"command name {c['name']!r} must be 1-32 letters/digits/_")
         if c.get("type") not in ("template", "alias"):
             raise ValueError("custom command type must be 'template' or 'alias'")
-    merged = _merge(DEFAULTS, new)
+    if new.get("custom_commands", None) is not None and any(c["name"] == "verify" for c in new["custom_commands"]):
+        raise ValueError("'verify' is reserved for linking chats")
+    merged = _merge(cur, new)  # partial updates keep everything else that is already stored
+    merged["links"] = new.get("links", cur.get("links", []))
     PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = PATH.with_suffix(".tmp")
     with _lock:

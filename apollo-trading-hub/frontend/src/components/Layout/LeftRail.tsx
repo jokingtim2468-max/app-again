@@ -9,7 +9,7 @@ const items: { id: Route; label: string; glyph: string }[] = [
 
 export default function LeftRail({ route, go }: { route: Route; go: (r: Route) => void }) {
   return (
-    <nav aria-label="Primary" style={{
+    <nav data-tour="rail" aria-label="Primary" style={{
       gridRow: '1 / 3', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '10px 0',
       background: 'linear-gradient(to right, #0E1018 0%, #0E1018 70%, rgba(14,16,24,0) 100%)',
       borderRight: '1px solid transparent', borderImage: 'linear-gradient(to bottom, transparent, #212636 15%, #212636 85%, transparent) 1',

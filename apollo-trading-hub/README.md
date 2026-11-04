@@ -111,17 +111,25 @@ Everything is journaled to `backend/state/apollo.db` (SQLite, git-ignored; `APOL
 - **CSV export** for every log: `/api/logs/<balances|fills|payouts|daily_pnl|costs|events>/export.csv?account=&start=&end=`.
 
 ## Telegram & Discord bots
-Set up in **Settings** (⚙ in the left rail). Tokens are stored only in `backend/state/settings.json` (git-ignored, owner-only
-permissions) and are always masked in the app. Bots start when Apollo launches and re-register every command each time:
-Telegram's "/" menu and Discord slash commands (guild-scoped = instant if you set the server ID). Discord also takes `!status`
-style text commands (enable the *Message Content* intent).
-- **Read commands:** `/status /fleet /ready /payouts /outcomes /profit /pnl /help`, open to your *Allowed users*.
-- **Control commands 🔒:** `/kill [account] /flatten /resume <acct> /requested <acct> [amt] /paid <acct> [amt] /rejected <acct>`,
-  only for *Control users* (the bot replies with your ID so you can add it).
-- **Custom commands:** *template* text with live values (`{ready_now_net}`, `{blown}`, `{pass_rate}`, `{fleet_day_pnl}`…) or an
-  *alias* that runs several commands (`status; ready; outcomes`). Built-in examples: `/gm`, `/money`.
-- **Alerts** (toggle each): app launched, payout ready, eval passed, account blown, parked/released, target hit, daily loss
-  limit, payout recorded, kill switch, graduation, order routing errors.
+Everything is set up in **Settings** (⚙), which has step-by-step instructions and its own tutorial; the **?** button replays the app tour.
+
+**Two ways to connect**
+- **Shared Apollo bot (recommended):** one Apollo bot serves every app through the **Apollo Bot Relay** (`relay/`). Users enter
+  the relay URL, click *Add Apollo bot to my server* or *Open in Telegram*, then link with a code. Each app connects *out* to
+  the relay over a WebSocket, so no ports need opening on the user's PC. Telegram and Discord allow only one connection per
+  bot, which is why the shared bot needs this relay.
+  Run the relay once: `docker build -t apollo-relay -f relay/Dockerfile .` then
+  `docker run -d -p 8787:8787 -v apollo-relay:/data -e RELAY_DISCORD_TOKEN=… -e RELAY_TELEGRAM_TOKEN=… -e RELAY_ACCESS_KEY=… apollo-relay`
+  behind HTTPS. The relay only forwards messages between linked chats and their own app, and an app can only post to chats it linked.
+- **My own bot:** paste your own Discord/Telegram bot token; the bot runs inside the app.
+
+**Linking with /verify:** Settings → *Generate code* → type `/verify CODE` in the Discord channel or Telegram chat. That links
+it to your app and makes you an allowed user (plus control commands if ticked). Codes expire after 10 minutes and work once.
+Then pick **which channels get which alerts** (Discord lists the server's channels). Only verified/added users can use the bot.
+
+**Commands:** `/status /fleet /ready /payouts /outcomes /profit /pnl /help`; control 🔒 `/kill [acct] /flatten /resume /requested /paid /rejected`.
+Custom commands (templates with `{live_values}` or aliases like `status; ready`) are registered at every launch; on the shared
+bot run them as `/apollo name`. Tokens and keys live only in `backend/state/settings.json` (git-ignored, owner-only).
 
 ## Safety
 - **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).

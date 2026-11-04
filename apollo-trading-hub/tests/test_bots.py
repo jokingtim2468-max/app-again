@@ -66,51 +66,112 @@ def test_alert_formatting():
     assert alert_for({"type": "trade"}) is None
 
 
-def test_telegram_handles_commands_and_registers_menu():
+def _router(tmp_path, monkeypatch):
+    from backend.src.bots import settings
+    from backend.src.bots.router import Router
+    monkeypatch.setattr(settings, "PATH", tmp_path / "s.json")
+    return Router(engine()), settings
+
+
+def test_verify_links_chat_grants_roles_and_routes_alerts(tmp_path, monkeypatch):
+    r, settings = _router(tmp_path, monkeypatch)
+    meta = {"platform": "discord", "user_id": "77", "user_name": "tim", "chat_id": "C1", "guild_id": "G1", "chat_title": "Apollo HQ"}
+    assert "isn't linked" in run(r.handle("status", meta))                       # unlinked chat is refused
+    assert "invalid or expired" in run(r.handle("verify NOPE12", meta))
+    code = r.new_code(grant_control=True)["code"]
+    reply = run(r.handle(f"/verify {code.lower()}", meta))
+    assert reply.startswith("✅ Linked server **Apollo HQ**") and "control commands" in reply
+    cfg = settings.load()
+    assert cfg["links"][0]["id"] == "discord:G1" and "77" in cfg["discord"]["allowed_user_ids"] and "77" in cfg["discord"]["control_user_ids"]
+    assert "1 ready" in run(r.handle("ready", meta))
+    assert "Kill switch" in run(r.handle("kill", meta))                          # granted control
+    assert "invalid" in run(r.handle(f"verify {code}", meta))                    # codes are single use
+    other = {**meta, "user_id": "88", "chat_id": "C2"}                          # same server, unverified member: refused
+    assert "not an allowed user" in run(r.handle("ready", other)) and "88" in run(r.handle("ready", other))
+    cfg = settings.load(); cfg["discord"]["allowed_user_ids"].append("88"); settings.save(cfg)
+    assert "1 ready" in run(r.handle("ready", other)) and "control command" in run(r.handle("kill", other))   # added: read only
+    cfg = settings.load()
+    assert r.destinations("FAILED") == [("discord", "C1")]                      # default: where /verify was typed
+    cfg["links"][0]["destinations"] = {"C1": {"kinds": ["payout_ready"]}, "C9": {"kinds": ["FAILED", "PASSED"]}}
+    settings.save(cfg)
+    assert r.destinations("FAILED") == [("discord", "C9")] and r.destinations("payout_ready") == [("discord", "C1")]
+
+
+def test_verify_code_without_control_and_telegram_menu(tmp_path, monkeypatch):
+    r, settings = _router(tmp_path, monkeypatch)
     sent = []
 
     def h(req):
-        body = json.loads(req.content or b"{}")
-        m = req.url.path.rsplit("/", 1)[-1]
-        sent.append((m, body))
-        return httpx.Response(200, json={"ok": True, "result": {"username": "apollo_bot"} if m == "getMe" else True})
-    bot = TelegramBot({"token": "123:abc", "allowed_user_ids": ["7"], "control_user_ids": ["9"], "alert_chat_ids": [55]},
-                      engine(), httpx.AsyncClient(transport=httpx.MockTransport(h)))
+        sent.append((req.url.path.rsplit("/", 1)[-1], json.loads(req.content or b"{}")))
+        return httpx.Response(200, json={"ok": True, "result": True})
+    bot = TelegramBot("123:abc", r.handle, r.menu, httpx.AsyncClient(transport=httpx.MockTransport(h)))
     run(bot.register_commands())
     menu = [c["command"] for c in sent[-1][1]["commands"]]
-    assert "gm" in menu and "money" in menu and "payouts" in menu
-    reply = run(bot.handle({"update_id": 1, "message": {"text": "/money", "from": {"id": 7}, "chat": {"id": 7}}}))
-    assert reply.startswith("ready $450") and sent[-1][0] == "sendMessage" and sent[-1][1]["chat_id"] == 7
-    assert "Not authorised" in run(bot.handle({"update_id": 2, "message": {"text": "/status", "from": {"id": 3}, "chat": {"id": 3}}}))
-    run(bot.alert("hi"))
-    assert sent[-1][1] == {"chat_id": 55, "text": "hi", "disable_web_page_preview": True}
+    assert menu[0] == "verify" and {"gm", "money", "payouts"} <= set(menu)
+    code = r.new_code(False)["code"]
+    rep = run(bot.handle({"update_id": 1, "message": {"text": f"/verify {code}", "from": {"id": 5, "first_name": "T"}, "chat": {"id": -100, "title": "Gold desk", "type": "group"}}}))
+    assert rep.startswith("✅ Linked **Gold desk**") and sent[-1][1]["chat_id"] == -100
+    assert "control command" in run(bot.handle({"update_id": 2, "message": {"text": "/kill", "from": {"id": 5}, "chat": {"id": -100}}}))
+    assert run(bot.handle({"update_id": 3, "message": {"text": "/money", "from": {"id": 5}, "chat": {"id": -100}}})).startswith("ready $450")
 
 
-def test_discord_prefix_slash_and_registration():
+def test_discord_transport_slash_prefix_and_channels(tmp_path, monkeypatch):
+    r, _ = _router(tmp_path, monkeypatch)
     sent = []
 
     def h(req):
         sent.append((req.method, req.url.path, json.loads(req.content or b"null")))
         if req.url.path.endswith("/oauth2/applications/@me"):
             return httpx.Response(200, json={"id": "42"})
+        if req.url.path.endswith("/guilds/G/channels"):
+            return httpx.Response(200, json=[{"id": "a", "name": "alerts", "type": 0, "position": 2}, {"id": "v", "name": "voice", "type": 2},
+                                             {"id": "p", "name": "payouts", "type": 0, "position": 1}])
         return httpx.Response(200, json={})
-    bot = DiscordBot({"token": "t", "prefix": "!", "guild_id": "G", "control_user_ids": ["9"], "alert_channel_ids": ["C"]},
-                     engine(), httpx.AsyncClient(transport=httpx.MockTransport(h)))
+    bot = DiscordBot("t", r.handle, r.menu, "!", "G", httpx.AsyncClient(transport=httpx.MockTransport(h)))
     run(bot.register_commands())
-    m, path, body = sent[-1]
-    assert m == "PUT" and path == "/api/v10/applications/42/guilds/G/commands" and {"gm", "money", "kill"} <= {c["name"] for c in body}
-    run(bot.on_message({"content": "!money", "channel_id": "C", "author": {"id": "1"}}))
-    assert sent[-1][1] == "/api/v10/channels/C/messages" and sent[-1][2]["content"].startswith("ready $450")
-    assert run(bot.on_message({"content": "!status", "channel_id": "C", "author": {"id": "1", "bot": True}})) is None
-    r = run(bot.on_interaction({"type": 2, "id": "I", "token": "T", "member": {"user": {"id": "9"}},
-                                "data": {"name": "kill", "options": [{"name": "args", "value": "ACC2"}]}}))
-    assert "Kill switch" in r and sent[-1][1] == "/api/v10/interactions/I/T/callback"
+    assert sent[-1][1] == "/api/v10/applications/42/guilds/G/commands" and sent[-1][2][0]["name"] == "verify"
+    assert "client_id=42" in bot.status["invite_url"] and "applications.commands" in bot.status["invite_url"]
+    code = r.new_code(True)["code"]
+    rep = run(bot.on_interaction({"type": 2, "id": "I", "token": "T", "guild_id": "G", "channel_id": "a", "member": {"user": {"id": "9"}},
+                                  "data": {"name": "verify", "options": [{"name": "args", "value": code}]}}))
+    assert rep.startswith("✅") and sent[-1][1] == "/api/v10/interactions/I/T/callback"
+    run(bot.on_message({"content": "!money", "channel_id": "a", "guild_id": "G", "author": {"id": "9"}}))
+    assert sent[-1][2]["content"].startswith("ready $450")
+    assert [c["name"] for c in run(bot.guild_channels("G"))] == ["payouts", "alerts"]   # text channels only, in order
+
+
+def test_relay_binds_on_verify_and_forwards(tmp_path, monkeypatch):
+    import importlib
+    monkeypatch.setenv("RELAY_STATE", str(tmp_path / "relay.json"))
+    rmod = importlib.reload(importlib.import_module("relay.apollo_relay"))
+    app_router, _ = _router(tmp_path, monkeypatch)
+    relay = rmod.Relay()
+    reg = relay.register()
+    assert relay.auth(reg["install_id"], reg["secret"]) and not relay.auth(reg["install_id"], "wrong")
+
+    class FakeAppSocket:  # stands in for the app's WebSocket: answers commands with the app's own router
+        async def send_json(self, m):
+            if m["type"] == "command":
+                relay.waiters[m["req_id"]].set_result(await app_router.handle(m["text"], m["meta"]))
+    relay.conns[reg["install_id"]] = FakeAppSocket()
+    meta = {"platform": "telegram", "user_id": "5", "chat_id": "-100", "chat_title": "Desk"}
+    assert "To connect it to your Apollo app" in run(relay.handle("status", meta))     # unbound chat
+    code = app_router.new_code(False)["code"]
+    relay.codes[code] = reg["install_id"]                                           # synced by the app's RelayClient
+    assert run(relay.handle(f"/verify {code}", meta)).startswith("✅")
+    assert relay.binding_for(meta) == reg["install_id"]
+    assert run(relay.handle("/apollo money", meta)).startswith("ready $450")          # custom command via passthrough
+    assert run(relay.owns_destination(reg["install_id"], "telegram", "-100"))
+    assert not run(relay.owns_destination(reg["install_id"], "telegram", "-999"))    # can't send to chats it didn't link
+    relay.conns.clear()
+    assert "offline" in run(relay.handle("status", meta))
 
 
 def test_settings_mask_and_keep_token(tmp_path, monkeypatch):
     from backend.src.bots import settings
     monkeypatch.setattr(settings, "PATH", tmp_path / "s.json")
     settings.save({"telegram": {"enabled": True, "token": "123456:ABCDEFGHIJKL"}})
+    assert settings.load()["custom_commands"]           # partial save keeps defaults/other settings
     shown = settings.mask(settings.load())
     assert shown["telegram"]["token"] == "1234…IJKL" and shown["telegram"]["token_set"]
     settings.save({"telegram": {"enabled": True, "token": shown["telegram"]["token"], "alert_chat_ids": [1]}})

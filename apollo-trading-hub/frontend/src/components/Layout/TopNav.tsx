@@ -20,28 +20,29 @@ export default function TopNav({ route, go }: { route: Route; go: (r: Route) => 
       <strong style={{ letterSpacing: '.18em', fontSize: 11 }}>APOLLO<span className="mut"> TRADING</span></strong>
       <div role="tablist" className="row" style={{ gap: 2 }}>
         {(['workspace', 'builder', 'settings'] as Route[]).map((r) => (
-          <button key={r} role="tab" aria-selected={route === r} onClick={() => go(r)} className="ghost"
+          <button key={r} data-tour={`tab-${r}`} role="tab" aria-selected={route === r} onClick={() => go(r)} className="ghost"
             style={{ color: route === r ? 'var(--text)' : undefined, borderBottom: route === r ? '2px solid var(--accent)' : '2px solid transparent', borderRadius: 0, height: 44 }}>
             {r === 'workspace' ? 'Workspace' : r === 'builder' ? 'Builder' : 'Settings'}
           </button>
         ))}
       </div>
-      <select aria-label="Active layout" value={activeName} onChange={(e) => load(e.target.value)} style={{ maxWidth: 200 }}>
+      <select data-tour="layout" aria-label="Active layout" value={activeName} onChange={(e) => load(e.target.value)} style={{ maxWidth: 200 }}>
         {names.map((n) => <option key={n} value={n}>{n}{n in presets && !(n in saved) ? ' (preset)' : ''}</option>)}
       </select>
-      <button className="ghost" onClick={() => setLocked(!locked)} aria-pressed={locked} title="Lock grid positions during live execution"
+      <button data-tour="lock" className="ghost" onClick={() => setLocked(!locked)} aria-pressed={locked} title="Lock grid positions during live execution"
         style={{ color: locked ? 'var(--warn)' : undefined }}>{locked ? '🔒 Locked' : '✎ Edit'}</button>
       {dirty && <span className="warn" style={{ fontSize: 11 }}>● unsaved</span>}
       <div style={{ flex: 1 }} />
       <span className="mono mut">{symbol} <span style={{ color: 'var(--text)' }}>{last ? last.toFixed(1) : '—'}</span></span>
-      <span className="pill" style={{ color: !online ? 'var(--bad)' : live ? 'var(--warn)' : 'var(--accent)' }} title="Execution mode">
+      <span data-tour="mode" className="pill" style={{ color: !online ? 'var(--bad)' : live ? 'var(--warn)' : 'var(--accent)' }} title="Execution mode">
         <span className="dot" />{online ? mode : 'BACKEND OFFLINE'}
       </span>
       <span className="pill mono" title="Fleet day PnL (closed + open)">
         Fleet <b className={dayPnl >= 0 ? 'pos' : 'neg'}>{usd(dayPnl)}</b>
         {atRisk > 0 && <span className="neg"> · {atRisk} near MLL</span>}
       </span>
-      <button className="danger" disabled={!online} aria-label="Fleet kill switch"
+      <button className="ghost" title="App tour" aria-label="App tour" onClick={() => window.dispatchEvent(new Event('apollo:tour'))}>?</button>
+      <button data-tour="kill" className="danger" disabled={!online} aria-label="Fleet kill switch"
         onClick={() => { if (arm) { kill(); setArm(false); } else setArm(true); }}
         title="Flatten + halt every account">{arm ? 'CONFIRM KILL ALL' : '⏻ KILL SWITCH'}</button>
     </header>

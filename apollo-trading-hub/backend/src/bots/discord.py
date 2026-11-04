@@ -1,37 +1,43 @@
 """Discord bot over the Gateway WebSocket (no public URL needed).
 
-- Slash commands for every built-in + custom command are registered at launch (guild-scoped if guild_id is set:
-  instant; otherwise global: can take up to an hour to appear the first time).
-- Prefix commands (default "!status") also work; that needs the MESSAGE CONTENT intent enabled for the bot in the
-  Discord Developer Portal (Bot > Privileged Gateway Intents).
+Transport only: commands go to `handler(text, meta) -> reply`. Slash commands for every command (incl. /verify) are
+registered at launch (guild-scoped = instant; global can take up to an hour the first time). Prefix commands like
+!status also work if the MESSAGE CONTENT intent is enabled for the bot.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+from typing import Awaitable, Callable
 
 import httpx
 import websockets
-
-from .commands import CommandEngine, Ctx
 
 log = logging.getLogger("apollo.discord")
 REST = "https://discord.com/api/v10"
 GATEWAY = "wss://gateway.discord.gg/?v=10&encoding=json"
 INTENTS = (1 << 0) | (1 << 9) | (1 << 12) | (1 << 15)  # GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES, MESSAGE_CONTENT
+INVITE_PERMS = 1024 | 2048 | 16384 | 65536             # view channel, send messages, embed links, read history
+Handler = Callable[[str, dict], Awaitable[str | None]]
+
+
+def invite_url(app_id: str) -> str:
+    return f"https://discord.com/oauth2/authorize?client_id={app_id}&scope=bot%20applications.commands&permissions={INVITE_PERMS}"
 
 
 class DiscordBot:
-    def __init__(self, cfg: dict, engine: CommandEngine, client: httpx.AsyncClient | None = None):
-        self.cfg, self.engine = cfg, engine
+    def __init__(self, token: str, handler: Handler, menu: Callable[[], list[tuple[str, str]]], prefix: str = "!",
+                 guild_id: str = "", client: httpx.AsyncClient | None = None):
+        self.token, self.handler, self.menu, self.prefix, self.guild_id = token, handler, menu, prefix or "!", guild_id
         self.client = client or httpx.AsyncClient(timeout=20)
         self.app_id: str | None = None
-        self.status = {"running": False, "error": None, "username": None}
+        self.status = {"running": False, "error": None, "username": None, "invite_url": None}
         self.seq = None
+        self.guild_names: dict[str, str] = {}
 
     def _h(self):
-        return {"Authorization": f"Bot {self.cfg['token']}"}
+        return {"Authorization": f"Bot {self.token}"}
 
     async def rest(self, method: str, path: str, **kw):
         r = await self.client.request(method, REST + path, headers=self._h(), **kw)
@@ -43,43 +49,44 @@ class DiscordBot:
         for i in range(0, len(text), 1900):
             await self.rest("POST", f"/channels/{channel_id}/messages", json={"content": text[i:i + 1900]})
 
+    async def guild_channels(self, guild_id: str) -> list[dict]:
+        """Text channels the bot can see in a server: lets the user pick where each alert goes."""
+        chans = await self.rest("GET", f"/guilds/{guild_id}/channels")
+        return [{"id": c["id"], "name": c["name"], "position": c.get("position", 0)} for c in sorted(chans, key=lambda c: c.get("position", 0))
+                if c.get("type") in (0, 5)]  # text + announcement
+
     async def register_commands(self) -> None:
         app = await self.rest("GET", "/oauth2/applications/@me")
         self.app_id = app["id"]
+        self.status["invite_url"] = invite_url(self.app_id)
         body = [{"name": n, "description": (d or n)[:100], "type": 1,
-                 "options": [{"type": 3, "name": "args", "description": "arguments, e.g. account and amount", "required": False}]}
-                for n, d in self.engine.menu()][:100]
-        g = self.cfg.get("guild_id")
-        path = f"/applications/{self.app_id}/guilds/{g}/commands" if g else f"/applications/{self.app_id}/commands"
+                 "options": [{"type": 3, "name": "args", "description": "arguments (e.g. the verification code, or account + amount)", "required": False}]}
+                for n, d in self.menu()][:100]
+        path = f"/applications/{self.app_id}/guilds/{self.guild_id}/commands" if self.guild_id else f"/applications/{self.app_id}/commands"
         await self.rest("PUT", path, json=body)
 
-    def _perm(self, uid: str) -> tuple[bool, bool]:
-        al = [str(x) for x in self.cfg.get("allowed_user_ids") or []]
-        ctl = [str(x) for x in self.cfg.get("control_user_ids") or []]
-        return (not al or uid in al or uid in ctl), uid in ctl
+    def _meta(self, d: dict, user: dict) -> dict:
+        g = d.get("guild_id")
+        return {"platform": "discord", "user_id": str(user.get("id")), "user_name": user.get("global_name") or user.get("username"),
+                "chat_id": str(d.get("channel_id")), "guild_id": str(g) if g else None,
+                "chat_title": self.guild_names.get(str(g), "server") if g else "direct message"}
 
     async def on_message(self, d: dict) -> str | None:
-        pre = self.cfg.get("prefix") or "!"
         text = d.get("content") or ""
-        if d.get("author", {}).get("bot") or not text.startswith(pre):
+        if d.get("author", {}).get("bot") or not text.startswith(self.prefix):
             return None
-        uid = str(d["author"]["id"])
-        ok, ctl = self._perm(uid)
-        reply = await self.engine.run(text[len(pre):], Ctx("discord", uid, ctl)) if ok else \
-            f"⛔ Not authorised. Your Discord user ID is {uid}; add it in Apollo Settings."
-        await self.send(d["channel_id"], reply)
+        reply = await self.handler(text[len(self.prefix):], self._meta(d, d["author"]))
+        if reply:
+            await self.send(d["channel_id"], reply)
         return reply
 
     async def on_interaction(self, d: dict) -> str | None:
         if d.get("type") != 2:
             return None
         user = (d.get("member") or {}).get("user") or d.get("user") or {}
-        uid = str(user.get("id"))
         name = d["data"]["name"]
         args = next((o["value"] for o in d["data"].get("options", []) if o["name"] == "args"), "")
-        ok, ctl = self._perm(uid)
-        reply = await self.engine.run(f"{name} {args}".strip(), Ctx("discord", uid, ctl)) if ok else \
-            f"⛔ Not authorised. Your Discord user ID is {uid}; add it in Apollo Settings."
+        reply = await self.handler(f"{name} {args}".strip(), self._meta(d, user)) or "Done."
         await self.client.post(f"{REST}/interactions/{d['id']}/{d['token']}/callback",
                                json={"type": 4, "data": {"content": reply[:1900]}})
         return reply
@@ -96,7 +103,7 @@ class DiscordBot:
                 async with websockets.connect(GATEWAY, max_size=2 ** 22) as ws:
                     hello = json.loads(await ws.recv())
                     hb = asyncio.create_task(self._heartbeat(ws, hello["d"]["heartbeat_interval"] / 1000))
-                    await ws.send(json.dumps({"op": 2, "d": {"token": self.cfg["token"], "intents": INTENTS,
+                    await ws.send(json.dumps({"op": 2, "d": {"token": self.token, "intents": INTENTS,
                                                              "properties": {"os": "apollo", "browser": "apollo", "device": "apollo"}}}))
                     try:
                         async for raw in ws:
@@ -107,11 +114,13 @@ class DiscordBot:
                                 t, d = m.get("t"), m.get("d") or {}
                                 if t == "READY":
                                     self.status.update(running=True, username=d["user"]["username"], error=None)
+                                elif t == "GUILD_CREATE":
+                                    self.guild_names[str(d["id"])] = d.get("name", "server")
                                 elif t == "MESSAGE_CREATE":
                                     await self.on_message(d)
                                 elif t == "INTERACTION_CREATE":
                                     await self.on_interaction(d)
-                            elif m.get("op") in (7, 9):  # reconnect / invalid session
+                            elif m.get("op") in (7, 9):
                                 break
                     finally:
                         hb.cancel()
@@ -121,10 +130,3 @@ class DiscordBot:
                 self.status["error"] = str(e)
                 log.warning("discord gateway error: %s", e)
             await asyncio.sleep(5)
-
-    async def alert(self, text: str) -> None:
-        for cid in self.cfg.get("alert_channel_ids") or []:
-            try:
-                await self.send(cid, text)
-            except Exception as e:
-                self.status["error"] = f"alert to {cid} failed: {e}"
