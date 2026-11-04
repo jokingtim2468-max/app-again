@@ -124,6 +124,7 @@ class AccountState:
     cycle_day_pnls: list = field(default_factory=list)  # each session's PnL since last payout
     last_payout_date: str | None = None
     payout_pending: float = 0.0                    # requested at the firm, awaiting approval
+    total_net_received: float = 0.0                # take-home after the firm's split
     firm: str = "lucid"
     plan: str = "FLEX"
     size: str = "150K"
@@ -175,6 +176,7 @@ class RiskSentinel:
         self.on_event = on_event or (lambda e: None)
         self.ledger: list[dict] = []          # every lifecycle event, every account, every firm
         self.pending_flatten: set[str] = set()  # accounts the router must flatten (just parked)
+        self.journal = None                     # backend.src.journal.Journal when running the server
         self.accounts: dict[str, AccountState] = {}
         self.specs = [a for a in legacy_accounts(self.config) if a.get("enabled", True)]
         if not self.specs:
@@ -306,6 +308,8 @@ class RiskSentinel:
             self.realize(account_id, realized)
         if a.position_qty == 0:
             a.open_pnl = 0.0
+        if self.journal:
+            self.journal.fill(a, action, qty, a.contract if a.contract != "MGC" else "MGC", price, realized)
         return realized
 
     def realize(self, account_id: str, pnl: float) -> AccountState:
@@ -330,6 +334,9 @@ class RiskSentinel:
             return acct
         r = acct.rules
         day_pnl = acct.closed_balance - acct.day_start_balance
+        if self.journal:
+            self.journal.day(acct, session_date, acct.day_start_balance)
+            self.journal.balance(acct, "eod")  # before the day counter resets, so day_pnl is the session's result
         acct.best_day_profit = max(acct.best_day_profit, day_pnl)
         if acct.stage == "FUNDED" and day_pnl != 0:
             acct.cycle_day_pnls.append(round(day_pnl, 2))
@@ -345,6 +352,8 @@ class RiskSentinel:
         acct.last_eod = session_date
         if acct.stage == "EVALUATION" and not acct.liquidated and self.eval_passed(account_id):
             self.promote(account_id, session_date)
+            if self.journal:
+                self.journal.balance(acct, "promoted")
         return acct
 
     # ---- evaluation / payouts --------------------------------------------
@@ -380,8 +389,12 @@ class RiskSentinel:
 
     def approve_payout(self, account_id: str, amount: float) -> dict:
         acct = self.accounts[account_id]
+        from .payouts import net_of_split, path_for
+        path = path_for(acct.rules) or {"split": acct.rules.get("payout_split", 0.9)}
+        net = net_of_split(path, amount, acct.total_paid_out)
         acct.closed_balance -= amount
         acct.total_paid_out += amount
+        acct.total_net_received = round(acct.total_net_received + net, 2)
         acct.payouts_approved += 1
         acct.qualifying_days = 0
         acct.day_start_balance = acct.closed_balance
@@ -389,8 +402,11 @@ class RiskSentinel:
         acct.last_payout_date, acct.payout_pending = datetime.now(ET).date().isoformat(), 0.0
         if acct.rules.get("lock_mll_on_first_payout") and acct.rules.get("mll_lock_level") and not acct.mll_locked:
             acct.mll, acct.mll_locked = acct.rules["mll_lock_level"], True  # LucidFlex: payout locks MLL at start+100
-        result = {"account_id": account_id, "payout_number": acct.payouts_approved, "amount": amount}
-        self.log(account_id, "PAYOUT", amount=amount, number=acct.payouts_approved)
+        result = {"account_id": account_id, "payout_number": acct.payouts_approved, "amount": amount, "net_to_you": round(net, 2)}
+        self.log(account_id, "PAYOUT", amount=amount, net=round(net, 2), number=acct.payouts_approved)
+        if self.journal:
+            self.journal.payout(acct, "PAID", amount, net, path.get("split", 0.9))
+            self.journal.balance(acct, "payout")
         grad = acct.rules.get("max_payouts_before_graduation")
         if grad and acct.payouts_approved >= grad:
             result["graduation"] = self.trigger_graduation(account_id)
@@ -406,12 +422,18 @@ class RiskSentinel:
         acct = self.accounts[account_id]
         acct.payout_pending = float(amount)
         self.log(account_id, "PAYOUT_REQUESTED", amount=amount)
+        if self.journal:
+            from .payouts import net_of_split, path_for
+            p = path_for(acct.rules) or {"split": 0.9}
+            self.journal.payout(acct, "REQUESTED", amount, net_of_split(p, amount, acct.total_paid_out), p.get("split", 0.9))
         return {"account_id": account_id, "pending": amount}
 
     def reject_payout(self, account_id: str, reason: str = "") -> None:
         acct = self.accounts[account_id]
         amt, acct.payout_pending = acct.payout_pending, 0.0
         self.log(account_id, "PAYOUT_REJECTED", amount=amt, reason=reason)
+        if self.journal:
+            self.journal.payout(acct, "REJECTED", amt, 0.0, 0.0, reason)
 
     def trigger_graduation(self, account_id: str) -> dict:
         acct = self.accounts[account_id]
@@ -435,6 +457,8 @@ class RiskSentinel:
         a = self.accounts.get(aid)
         e = {"ts": _now(), "account": aid, "firm": a.firm if a else data.get("firm"), "kind": kind, **data}
         self.ledger.append(e)
+        if self.journal:
+            self.journal.event(e)
         self.on_event({"type": "lifecycle", **e})
         return e
 

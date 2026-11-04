@@ -100,6 +100,16 @@ Firms limit how many funded accounts you may hold (Lucid: **5**). Apollo tracks 
   out** (enter each account's cost and purchase date).
 - When the firm issues the funded account under a new ID, update that account's *Broker account* in the Account Manager.
 
+## Balances, payout logs & profit logs
+Everything is journaled to `backend/state/apollo.db` (SQLite, git-ignored; `APOLLO_DB` to move it) and survives restarts:
+- **Balance history:** every account at each 17:00 ET close, after every payout, and every 5 minutes.
+- **Trades:** every fill with realized P&L. **Daily P&L:** one row per account per session.
+- **Payout log:** requested / paid / rejected, payout #, gross, **net to you after the split**, balance after.
+- **Costs:** eval purchases (from each account's *Cost* in the Account Manager), plus resets, activation and platform fees you add.
+- **Profit report** (`/api/reports/profit`, *Reports* layout): trading P&L vs payouts received vs costs = **real profit**,
+  by month, firm and account, plus the fleet equity curve.
+- **CSV export** for every log: `/api/logs/<balances|fills|payouts|daily_pnl|costs|events>/export.csv?account=&start=&end=`.
+
 ## Safety
 - **PAPER by default**; market data is a seeded **SIM** feed (labelled in every chart). `APOLLO_LIVE=1` switches to Tradovate (`TRADOVATE_ENV=demo` default).
 - Broker credentials are **env vars only**, never in `fleet.json`.

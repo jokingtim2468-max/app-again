@@ -543,3 +543,31 @@ def test_apex_closes_after_six_payouts():
     for _ in range(6):
         s.approve_payout("X", 500)
     assert a.status == "CLOSED"
+
+
+# ---------------- journal: balances, payouts, profit logs ----------------
+def test_journal_records_everything(tmp_path):
+    from backend.src.journal import Journal
+    j = Journal(tmp_path / "j.db")
+    s, a = _funded("lucid", "FLEX", "150K", cost=150)
+    s.journal = j
+    j.cost("X", "lucid", "purchase", 150)
+    s.apply_fill("X", "Buy", 10, 2900.0); s.apply_fill("X", "Sell", 10, 2903.0)      # +$300
+    s.end_of_day("X", "2026-10-31")
+    _days(s, [400, 400, 400, 400])
+    s.request_payout("X", 1000); s.approve_payout("X", 1000)
+    fills = j.query("fills", account="X")
+    assert len(fills) == 2 and fills[0]["realized"] == 300.0
+    days = j.query("daily_pnl", account="X")
+    assert len(days) == 5 and {d["pnl"] for d in days} == {300.0, 400.0}
+    pays = j.query("payouts", account="X")
+    assert [p["event"] for p in pays][::-1] == ["REQUESTED", "PAID"] and pays[0]["net_to_you"] == 900.0
+    bal = j.query("balances", account="X")
+    assert any(b["kind"] == "payout" for b in bal)
+    assert {b["day_pnl"] for b in bal if b["kind"] == "eod"} == {300.0, 400.0}   # session result, not 0
+    rep = j.profit_report()
+    t = rep["by_account"]["X"]
+    assert t["trading_pnl"] == 1900.0 and t["payouts_net"] == 900.0 and t["costs"] == 150 and t["real_profit"] == 750.0
+    assert rep["fleet_curve"][-1]["cumulative"] == 1900.0 and {"2026-10", "2026-11"} <= set(rep["by_month"])
+    assert "account,firm" in j.csv("payouts").splitlines()[0] or "ts,account" in j.csv("payouts").splitlines()[0]
+    assert a.total_net_received == 900.0

@@ -38,6 +38,21 @@ def _emit(e: dict) -> None:
 
 
 sentinel.on_event = _emit
+from .journal import Journal  # noqa: E402
+
+journal = Journal()
+sentinel.journal = journal
+
+
+def sync_costs(sen) -> None:
+    """Log each account's purchase cost once (eval fee) so profit reports net it out."""
+    logged = {(c["account"], c["kind"]) for c in journal.query("costs", limit=100000)}
+    for spec in sen.specs:
+        if spec.get("cost") and (spec["id"], "purchase") not in logged:
+            journal.cost(spec["id"], spec["firm"], "purchase", float(spec["cost"]), f"{spec['firm']} {spec['plan']} {spec['size']}")
+
+
+sync_costs(sentinel)
 bridge = FleetRouter(sentinel, on_event=_emit)
 bridge_task: asyncio.Task | None = None
 feed = MarketFeed(SYMBOL, on_event=_emit)
@@ -67,6 +82,13 @@ async def notify(text: str, data: dict) -> None:
             await (c.post(url, json=body) if body else c.post(url, content=text.encode()))
     except httpx.HTTPError as e:
         _emit({"type": "notify_error", "error": str(e)})
+
+
+async def balance_snapshots():
+    while True:
+        await asyncio.sleep(300)
+        for a in list(sentinel.accounts.values()):
+            await asyncio.to_thread(journal.balance, a)
 
 
 async def payout_watch():
@@ -125,7 +147,7 @@ async def mark_to_market():
 async def lifespan(app: FastAPI):
     global bridge_task
     bridge_task = asyncio.create_task(bridge.run())
-    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), payout_watch())]
+    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), payout_watch(), balance_snapshots())]
     yield
     for t in tasks:
         t.cancel()
@@ -362,6 +384,53 @@ def payout_rejected(account_id: str, req: PayoutAmt):
     return {"ok": True}
 
 
+# ---------------- logs & reports ----------------
+@app.get("/api/logs/{kind}")
+def logs(kind: str, account: str | None = None, firm: str | None = None, start: str | None = None,
+         end: str | None = None, limit: int = 2000):
+    """kind: balances | fills | payouts | daily_pnl | costs | events"""
+    try:
+        return journal.query(kind, account, firm, start, end, limit)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/api/logs/{kind}/export.csv")
+def logs_csv(kind: str, account: str | None = None, firm: str | None = None, start: str | None = None, end: str | None = None):
+    from fastapi.responses import PlainTextResponse
+    try:
+        body = journal.csv(kind, account=account, firm=firm, start=start, end=end, limit=1_000_000)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return PlainTextResponse(body, media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="apollo-{kind}{"-" + account if account else ""}.csv"'})
+
+
+@app.get("/api/reports/profit")
+def profit_report(start: str | None = None, end: str | None = None):
+    rep = journal.profit_report(start, end)
+    rep["live"] = {aid: {"firm": a.firm, "balance": round(a.closed_balance, 2), "equity": round(a.equity, 2),
+                         "profit_on_account": round(a.closed_balance - a.starting_balance, 2), "paid_out": a.total_paid_out,
+                         "net_received": a.total_net_received, "stage": a.stage, "status": a.status}
+                   for aid, a in sentinel.accounts.items()}
+    return rep
+
+
+class CostReq(BaseModel):
+    account: str
+    kind: str = "reset"
+    amount: float
+    note: str = ""
+
+
+@app.post("/api/logs/costs")
+def add_cost(req: CostReq):
+    """Record any spend: resets, activation fees, data/platform fees, so real profit is accurate."""
+    firm = sentinel.accounts[req.account].firm if req.account in sentinel.accounts else "other"
+    journal.cost(req.account, firm, req.kind, req.amount, req.note)
+    return {"ok": True}
+
+
 @app.get("/api/firms")
 def firms():
     return list_firms()
@@ -400,6 +469,8 @@ async def put_fleet_config(cfg: dict):
     if bridge_task:
         bridge_task.cancel()
     new.ledger = sentinel.ledger
+    new.journal = journal
+    sync_costs(new)
     for firm in {a.firm for a in new.accounts.values()}:  # caps may have changed: re-check queue + parking
         new.rebalance(firm)
         for aid, a in new.accounts.items():

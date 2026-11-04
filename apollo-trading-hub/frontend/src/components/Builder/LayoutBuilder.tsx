@@ -12,6 +12,7 @@ import BacktestWidget from '../Widgets/BacktestWidget';
 import TerminalWidget from '../Widgets/TerminalWidget';
 import AccountsWidget from '../Widgets/AccountsWidget';
 import PayoutsWidget from '../Widgets/PayoutsWidget';
+import ReportsWidget from '../Widgets/ReportsWidget';
 
 const Grid = WidthProvider(Responsive);
 export const ROW_HEIGHT = 30;
@@ -29,6 +30,7 @@ function renderWidget(w: WidgetItem) {
     case 'widget-terminal': return <TerminalWidget />;
     case 'widget-accounts': return <AccountsWidget />;
     case 'widget-payouts': return <PayoutsWidget />;
+    case 'widget-reports': return <ReportsWidget />;
   }
 }
 
