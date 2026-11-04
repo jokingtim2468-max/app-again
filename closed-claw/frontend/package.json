@@ -1,7 +1,7 @@
 {
-  "name": "closed-claw",
+  "name": "apollo-trading",
   "version": "0.1.0",
-  "description": "Closed Claw local-first AI workspace & fleet monitor",
+  "description": "Apollo Trading - modular prop fleet execution terminal",
   "main": "dist-electron/main.js",
   "private": true,
   "scripts": {
@@ -11,14 +11,19 @@
     "dist:win": "npm run build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "electron-updater": "^6.3.9",
+    "lightweight-charts": "^5.0.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-grid-layout": "^1.5.4",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
+    "@types/react-grid-layout": "^1.3.5",
     "@vitejs/plugin-react": "^4.3.2",
     "concurrently": "^9.0.1",
     "cross-env": "^7.0.3",
@@ -29,12 +34,30 @@
     "wait-on": "^8.0.1"
   },
   "build": {
-    "appId": "ai.closedclaw.app",
-    "productName": "Closed Claw",
-    "files": ["dist/**", "dist-electron/**"],
-    "directories": { "output": "release" },
-    "win": { "target": "nsis" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true },
-    "publish": [{ "provider": "github", "owner": "jokingtim2468-max", "repo": "app-again" }]
+    "appId": "com.apollotrading.app",
+    "productName": "Apollo Trading",
+    "files": [
+      "dist/**",
+      "dist-electron/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jokingtim2468-max",
+        "repo": "app-again"
+      }
+    ]
   }
 }

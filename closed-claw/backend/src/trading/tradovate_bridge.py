@@ -84,7 +84,7 @@ class TradovateBridge:
         return {"Authorization": f"Bearer {self.token}"}
 
     # ---- order routing ---------------------------------------------------
-    async def place_market(self, account: str, action: str, symbol: str, qty: int) -> dict:
+    async def place_market(self, account: str, action: str, symbol: str, qty: int, price: float | None = None) -> dict:
         if not self.live:
             res = {"mode": "PAPER", "account": account, "action": action, "symbol": symbol, "qty": qty,
                    "orderId": f"paper-{uuid.uuid4().hex[:8]}"}
@@ -95,9 +95,8 @@ class TradovateBridge:
                 r = await c.post(f"{self.rest}/order/placeorder", json=body, headers=self._h())
                 r.raise_for_status()
                 res = {"mode": self.mode, **r.json()}
-        acct = self.sentinel.accounts.get(account)
-        if acct:
-            acct.position_qty += qty if action == "Buy" else -qty
+        if account in self.sentinel.accounts and price is not None:
+            res["realized"] = round(self.sentinel.apply_fill(account, action, qty, price), 2)
         self.journal.append(res)
         self.on_event({"type": "order", **res})
         return res
@@ -120,7 +119,7 @@ class TradovateBridge:
                         continue
             elif acct.halted or acct.liquidated:
                 continue
-            results.append(await self.place_market(slave, master_fill.action, master_fill.symbol, qty))
+            results.append(await self.place_market(slave, master_fill.action, master_fill.symbol, qty, master_fill.price))
         return results
 
     # ---- websocket listener ---------------------------------------------
@@ -128,7 +127,7 @@ class TradovateBridge:
         """Listen to master account fills and mirror them. In PAPER mode this idles."""
         await self.authenticate()
         if not self.live:
-            log.warning("PAPER mode: no broker connection. Use /api/fleet/simulate_fill to drive copies.")
+            log.warning("PAPER mode: no broker connection. Orders via /api/fleet/order are filled at SIM last price.")
             while True:
                 await asyncio.sleep(3600)
         master_id = self.account_ids[self.cfg["master_account"]]
@@ -162,6 +161,7 @@ class TradovateBridge:
                     continue
                 contract = await self._contract_name(f["contractId"])
                 fill = Fill(self.cfg["master_account"], f["action"], contract, int(f["qty"]), f.get("price"))
+                self.sentinel.apply_fill(fill.account, fill.action, fill.qty, float(fill.price or 0))
                 self.on_event({"type": "master_fill", **fill.__dict__})
                 await self.mirror(fill)
 
@@ -171,9 +171,9 @@ class TradovateBridge:
             r.raise_for_status()
             return r.json()["name"]
 
-    async def flatten(self, account: str, symbol: str) -> dict | None:
+    async def flatten(self, account: str, symbol: str, price: float | None = None) -> dict | None:
         acct = self.sentinel.accounts[account]
         if acct.position_qty == 0:
             return None
         action = "Sell" if acct.position_qty > 0 else "Buy"
-        return await self.place_market(account, action, symbol, abs(acct.position_qty))
+        return await self.place_market(account, action, symbol, abs(acct.position_qty), price)

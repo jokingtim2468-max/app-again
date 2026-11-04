@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register Closed Claw MCP in Claude Desktop (claude_desktop_config.json) and optionally Claude Code."""
+"""Register Apollo Trading MCP in Claude Desktop (claude_desktop_config.json) and optionally Claude Code."""
 import argparse
 import os
 import platform
@@ -32,7 +32,7 @@ merge_server(desktop_config(), {
 })
 if a.claude_code:
     if shutil.which("claude"):
-        subprocess.run(["claude", "mcp", "add", "closed-claw", "--scope", "user",
+        subprocess.run(["claude", "mcp", "add", "apollo-trading", "--scope", "user",
                         "-e", f"PYTHONPATH={MCP_DIR.as_posix()}", "--", python_exe(), server], check=False)
     else:
         print("[warn] `claude` CLI not on PATH; skipped Claude Code registration")

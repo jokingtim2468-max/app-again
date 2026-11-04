@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register Closed Claw MCP in Google Antigravity: <workspace>/.agents/mcp_config.json."""
+"""Register Apollo Trading MCP in Google Antigravity: <workspace>/.agents/mcp_config.json."""
 import argparse
 from pathlib import Path
 

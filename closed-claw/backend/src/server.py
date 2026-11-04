@@ -1,36 +1,39 @@
-"""Closed Claw FastAPI service on 127.0.0.1:5050."""
+"""Apollo Trading backend (FastAPI) on 127.0.0.1:5050. Deterministic, rule-based: no AI/LLM."""
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .ai import ollama_client
+from . import layouts
 from .containers.docker_manager import DockerManager
 from .trading.backtester import BacktestConfig, list_strategies, run_backtest
+from .trading.market_feed import MarketFeed
 from .trading.risk_sentinel import ET, RiskSentinel
 from .trading.tradovate_bridge import Fill, TradovateBridge
 
 sentinel = RiskSentinel()
 sentinel.load()  # resume MLL / payouts / qualifying days across restarts
-events: asyncio.Queue = asyncio.Queue(maxsize=1000)
+SYMBOL = sentinel.config.get("broker", {}).get("front_month_symbol", "MGCZ6")
+subscribers: set[asyncio.Queue] = set()
 
 
 def _emit(e: dict) -> None:
     e.setdefault("ts", datetime.now(ET).isoformat())
-    if events.full():
-        events.get_nowait()
-    events.put_nowait(e)
+    for q in list(subscribers):
+        if q.full():
+            q.get_nowait()
+        q.put_nowait(e)
 
 
 bridge = TradovateBridge(sentinel, on_event=_emit)
+feed = MarketFeed(SYMBOL, on_event=_emit)
+feed.token_getter = lambda: bridge.token
 docker_mgr = DockerManager()
 
 
@@ -41,27 +44,44 @@ async def autosave():
 
 
 async def eod_scheduler():
-    """Roll the MLL once per day at 17:00 ET (EOD drawdown)."""
+    """Roll the MLL once per day at 17:00 ET settlement (EOD drawdown)."""
     while True:
         now = datetime.now(ET)
         if RiskSentinel.is_eod(now):
-            for aid in sentinel.accounts:
-                if sentinel.accounts[aid].last_eod != now.date().isoformat():
+            for aid, a in sentinel.accounts.items():
+                if a.last_eod != now.date().isoformat():
                     sentinel.end_of_day(aid, now.date().isoformat())
-                    _emit({"type": "eod", "account": aid, "mll": sentinel.accounts[aid].mll})
+                    _emit({"type": "eod", "account": aid, "mll": a.mll})
         await asyncio.sleep(30)
+
+
+async def mark_to_market():
+    """Revalue open positions on every tick so distance-to-MLL is live."""
+    global bracket
+    while True:
+        await asyncio.sleep(0.25)
+        for aid, a in sentinel.accounts.items():
+            if a.position_qty and a.avg_price:
+                sentinel.mark(aid, (feed.last - a.avg_price) * 10.0 * a.position_qty)
+        if bracket:
+            px, b = feed.last, bracket
+            hit_tp = px >= b["tp"] if b["side"] > 0 else px <= b["tp"]
+            hit_sl = px <= b["sl"] if b["side"] > 0 else px >= b["sl"]
+            if hit_tp or hit_sl:
+                bracket = None
+                await flatten_fleet("take_profit" if hit_tp else "stop_loss")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    tasks = [asyncio.create_task(eod_scheduler()), asyncio.create_task(bridge.run()), asyncio.create_task(autosave())]
+    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), bridge.run(), autosave(), feed.run(), mark_to_market())]
     yield
-    sentinel.save()
     for t in tasks:
         t.cancel()
+    sentinel.save()
 
 
-app = FastAPI(title="Closed Claw", lifespan=lifespan)
+app = FastAPI(title="Apollo Trading", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "app://.", "file://", "null"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -75,6 +95,7 @@ class BacktestReq(BaseModel):
     event_filter: list[str] | None = None
     stage: str = "EVALUATION"
     tick_csv: str | None = None
+    spread_multiplier: float = 1.0
 
 
 class OrderReq(BaseModel):
@@ -82,13 +103,6 @@ class OrderReq(BaseModel):
     stage: str
     contract_qty: int
     symbol: str = "MGC"
-
-
-class NewsReq(BaseModel):
-    headline: str
-    event_name: str
-    consensus_forecast: str
-    actual_print: str
 
 
 class ExecReq(BaseModel):
@@ -106,35 +120,107 @@ class SpawnReq(BaseModel):
 class FillReq(BaseModel):
     action: str
     qty: int
-    symbol: str = "MGCZ6"
+    symbol: str | None = None
+    tp_ticks: int | None = None  # server-side bracket (emulated, works paper + live)
+    sl_ticks: int | None = None
+
+
+bracket: dict | None = None  # one fleet bracket on the master position
 
 
 class PayoutReq(BaseModel):
     amount: float
 
 
+class LayoutReq(BaseModel):
+    name: str
+    widgets: list[dict]
+    activate: bool = False
+    source: str = "ui"
+
+
+class KillReq(BaseModel):
+    account_id: str | None = None
+
+
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "mode": bridge.mode, "ollama": await ollama_client.health(),
-            "docker": docker_mgr.available()}
+    return {"ok": True, "mode": bridge.mode, "feed": feed.source, "docker": docker_mgr.available()}
 
 
+# ---------------- fleet & risk ----------------
 @app.get("/api/fleet/status")
 def fleet_status():
     snap = sentinel.snapshot()
     for aid in snap:
         snap[aid]["payout"] = sentinel.payout_eligibility(aid)
     return {"firm": sentinel.config["firm"], "tier": sentinel.config["tier"], "mode": bridge.mode,
-            "master": sentinel.config["master_account"], "accounts": snap}
+            "master": sentinel.config["master_account"], "symbol": SYMBOL, "last": feed.last, "accounts": snap}
 
 
-@app.post("/api/fleet/simulate_fill")
-async def simulate_fill(req: FillReq):
+@app.post("/api/fleet/order")
+async def fleet_order(req: FillReq):
+    """Master order (PAPER in sim; routed to Tradovate when live) mirrored 1:1 to slaves."""
     if req.action not in ("Buy", "Sell"):
         raise HTTPException(400, "action must be Buy or Sell")
     master = sentinel.config["master_account"]
-    await bridge.place_market(master, req.action, req.symbol, req.qty)
-    return {"copies": await bridge.mirror(Fill(master, req.action, req.symbol, req.qty))}
+    m = sentinel.accounts[master]
+    check = sentinel.validate_order(master, m.stage, req.qty, req.symbol or SYMBOL)
+    reducing = (m.position_qty > 0 and req.action == "Sell") or (m.position_qty < 0 and req.action == "Buy")
+    if not check["approved"] and not reducing:
+        raise HTTPException(409, {"rejected": check})
+    sym = req.symbol or SYMBOL
+    master_res = await bridge.place_market(master, req.action, sym, req.qty, price=feed.last)
+    copies = await bridge.mirror(Fill(master, req.action, sym, req.qty, feed.last))
+    global bracket
+    if m.position_qty == 0:
+        bracket = None
+    elif req.tp_ticks or req.sl_ticks:
+        d = 1 if m.position_qty > 0 else -1
+        bracket = {"side": d, "tp": round(m.avg_price + d * (req.tp_ticks or 10_000) * 0.1, 1),
+                   "sl": round(m.avg_price - d * (req.sl_ticks or 10_000) * 0.1, 1)}
+        _emit({"type": "bracket_set", **bracket})
+    return {"master": master_res, "copies": copies, "bracket": bracket}
+
+
+async def flatten_fleet(reason: str) -> None:
+    master = sentinel.config["master_account"]
+    m = sentinel.accounts[master]
+    if m.position_qty == 0:
+        return
+    action, qty = ("Sell" if m.position_qty > 0 else "Buy"), abs(m.position_qty)
+    await bridge.place_market(master, action, SYMBOL, qty, price=feed.last)
+    await bridge.mirror(Fill(master, action, SYMBOL, qty, feed.last))
+    _emit({"type": "bracket_exit", "reason": reason, "price": feed.last})
+
+
+@app.get("/api/fleet/bracket")
+def get_bracket():
+    return bracket or {}
+
+
+@app.post("/api/fleet/flatten")
+async def flatten_all():
+    global bracket
+    bracket = None
+    await flatten_fleet("manual")
+    return {"ok": True}
+
+
+@app.post("/api/fleet/kill")
+async def kill(req: KillReq):
+    """Emergency kill switch: flatten and halt one account, or the whole fleet."""
+    ids = sentinel.kill(req.account_id)
+    flattened = [r for aid in ids if (r := await bridge.flatten(aid, SYMBOL, price=feed.last))]
+    _emit({"type": "kill_switch", "accounts": ids, "flattened": len(flattened)})
+    return {"halted": ids, "flatten_orders": flattened}
+
+
+@app.post("/api/fleet/{account_id}/resume")
+def resume(account_id: str):
+    if account_id not in sentinel.accounts:
+        raise HTTPException(404, "unknown account")
+    return {"resumed": sentinel.resume(account_id), "status": sentinel.accounts[account_id].status}
 
 
 @app.post("/api/fleet/{account_id}/payout")
@@ -147,52 +233,94 @@ def approve_payout(account_id: str, req: PayoutReq):
     return res
 
 
-@app.get("/api/strategies")
-def strategies():
-    return list_strategies()
-
-
-@app.post("/api/agent/tool_event")
-def tool_event(body: dict):
-    """MCP server reports each tool call here so the UI chat drawer can render it."""
-    _emit({"type": "mcp_tool", **body})
-    return {"ok": True}
-
-
 @app.post("/api/risk/validate")
 def validate(req: OrderReq):
     return sentinel.validate_order(req.account_id, req.stage.upper(), req.contract_qty, req.symbol)  # type: ignore[arg-type]
 
 
+# ---------------- market data ----------------
+@app.get("/api/market/bars")
+def bars(tf: str = "1m", limit: int = 600):
+    try:
+        data = feed.bars_tf(tf)[-limit:]
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"symbol": SYMBOL, "source": feed.source, "tf": tf, "bars": data, "levels": feed.session_levels(),
+            "positions": [{"account": a.account_id, "qty": a.position_qty, "avg_price": a.avg_price}
+                          for a in sentinel.accounts.values() if a.position_qty]}
+
+
+@app.get("/api/market/dom")
+def dom():
+    return {"symbol": SYMBOL, "source": feed.source, "last": feed.last, **feed.book}
+
+
+@app.get("/api/market/tape")
+def tape(min_size: int = 1, limit: int = 200):
+    return [t for t in list(feed.trades)[::-1] if t["size"] >= min_size][:limit]
+
+
+# ---------------- backtest ----------------
+@app.get("/api/strategies")
+def strategies():
+    return list_strategies()
+
+
 @app.post("/api/backtest")
 async def backtest(req: BacktestReq):
-    return await asyncio.to_thread(run_backtest, BacktestConfig(**req.model_dump()))
-
-
-@app.post("/api/news/predict")
-async def news(req: NewsReq):
     try:
-        return await ollama_client.predict(req.headline, req.event_name, req.consensus_forecast, req.actual_print)
-    except Exception as e:  # surface model/connection errors to the caller
-        raise HTTPException(502, f"news model error: {e}")
+        return await asyncio.to_thread(run_backtest, BacktestConfig(**req.model_dump()))
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, str(e))
 
 
-@app.post("/api/chat")
-async def chat(body: dict):
-    async def gen():
-        async for tok in ollama_client.chat_stream(body.get("messages", []), body.get("model")):
-            yield f"data: {json.dumps({'token': tok})}\n\n"
-        yield "data: [DONE]\n\n"
-    return StreamingResponse(gen(), media_type="text/event-stream")
+# ---------------- layouts ----------------
+@app.get("/api/layouts")
+def get_layouts():
+    return layouts.get_all()
 
 
+@app.post("/api/layouts")
+def save_layout(req: LayoutReq):
+    try:
+        res = layouts.save(req.name, req.widgets, req.activate, req.source)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    _emit({"type": "layout_saved", "name": res["name"], "activate": req.activate, "source": req.source})
+    return res
+
+
+@app.post("/api/layouts/{name}/activate")
+def activate_layout(name: str):
+    try:
+        layouts.set_active(name)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return {"active": name}
+
+
+@app.delete("/api/layouts/{name}")
+def delete_layout(name: str):
+    return {"deleted": layouts.delete(name)}
+
+
+@app.post("/api/agent/tool_event")
+def tool_event(body: dict):
+    """MCP server reports each tool call here so the UI can show agent activity."""
+    _emit({"type": "mcp_tool", **body})
+    return {"ok": True}
+
+
+# ---------------- containers ----------------
 @app.get("/api/containers")
 def containers():
-    return docker_mgr.list()
+    return docker_mgr.list() if docker_mgr.available() else []
 
 
 @app.post("/api/containers")
 def spawn(req: SpawnReq):
+    if not docker_mgr.available():
+        raise HTTPException(503, "Docker engine not reachable")
     return docker_mgr.spawn(**req.model_dump())
 
 
@@ -208,25 +336,52 @@ def remove(cid: str):
 
 @app.websocket("/ws/containers/{cid}")
 async def term(ws: WebSocket, cid: str):
+    """Interactive TTY shell for xterm.js: raw bytes both directions."""
     await ws.accept()
     try:
+        sock = await asyncio.to_thread(docker_mgr.attach_shell, cid)
+    except Exception as e:
+        await ws.send_text(f"\r\n[error] {e}\r\n")
+        await ws.close()
+        return
+    raw = sock._sock
+    raw.setblocking(False)
+    loop = asyncio.get_running_loop()
+
+    async def pump_out():
         while True:
-            cmd = await ws.receive_text()
-            for chunk in await asyncio.to_thread(lambda: list(docker_mgr.stream(cid, cmd))):
-                await ws.send_text(chunk)
-            await ws.send_text("\u0004")
+            data = await loop.sock_recv(raw, 4096)
+            if not data:
+                break
+            await ws.send_bytes(data)
+
+    out = asyncio.create_task(pump_out())
+    try:
+        while True:
+            msg = await ws.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+            data = msg.get("bytes") or (msg.get("text") or "").encode()
+            await loop.sock_sendall(raw, data)
     except WebSocketDisconnect:
         pass
+    finally:
+        out.cancel()
+        raw.close()
 
 
 @app.websocket("/ws/events")
 async def ws_events(ws: WebSocket):
     await ws.accept()
+    q: asyncio.Queue = asyncio.Queue(maxsize=2000)
+    subscribers.add(q)
     try:
         while True:
-            await ws.send_json(await events.get())
+            await ws.send_json(await q.get())
     except WebSocketDisconnect:
         pass
+    finally:
+        subscribers.discard(q)
 
 
 def main():

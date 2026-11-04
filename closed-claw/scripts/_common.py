@@ -23,7 +23,7 @@ def check_port() -> None:
     if port_free():
         print(f"[ok] port {PORT} is free on 127.0.0.1")
     else:
-        print(f"[warn] port {PORT} is in use (already-running Closed Claw SSE server, or a conflict). "
+        print(f"[warn] port {PORT} is in use (already-running Apollo SSE server, or a conflict). "
               f"Set MCP_PORT to another 49152-65535 port if it isn't ours.")
 
 
@@ -41,6 +41,8 @@ def merge_server(cfg_path: Path, entry: dict) -> None:
             backup = cfg_path.with_suffix(".json.bak")
             shutil.copy(cfg_path, backup)
             print(f"[warn] invalid JSON in {cfg_path}; backed up to {backup}")
-    data.setdefault("mcpServers", {})["closed-claw"] = entry
+    servers = data.setdefault("mcpServers", {})
+    servers.pop("closed-claw", None)  # migrate old name
+    servers["apollo-trading"] = entry
     cfg_path.write_text(json.dumps(data, indent=2))
-    print(f"[ok] registered closed-claw in {cfg_path}")
+    print(f"[ok] registered apollo-trading in {cfg_path}")

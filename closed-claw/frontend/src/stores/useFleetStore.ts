@@ -1,55 +1,61 @@
 import { create } from 'zustand';
-import { api, WS } from '../api';
-import { useAgentStore } from './useAgentStore';
+import { api, onEvent } from '../api';
 
 export interface Account {
-  account_id: string; stage: 'EVALUATION' | 'FUNDED'; closed_balance: number; open_pnl: number;
+  account_id: string; stage: 'EVALUATION' | 'FUNDED'; status: string; closed_balance: number; open_pnl: number;
   equity: number; mll: number; mll_locked: boolean; distance_to_mll: number; closed_profit: number;
-  day_start_balance: number; qualifying_days: number; payouts_approved: number; position_qty: number;
+  day_start_balance: number; qualifying_days: number; payouts_approved: number; position_qty: number; avg_price: number;
   max_contracts: number; halted: boolean; liquidated: boolean;
   payout: { eligible: boolean; max_request: number };
 }
 export interface FleetEvent { type: string; ts?: string; [k: string]: unknown }
 
 interface FleetState {
-  mode: string; master: string; accounts: Account[]; events: FleetEvent[]; error: string | null;
-  history: Record<string, number[]>;
+  online: boolean; mode: string; master: string; symbol: string; last: number;
+  accounts: Account[]; events: FleetEvent[]; lastError: string | null;
+  start: () => () => void;
   refresh: () => Promise<void>;
-  connect: () => () => void;
-  simulateFill: (action: 'Buy' | 'Sell', qty: number) => Promise<void>;
+  order: (action: 'Buy' | 'Sell', qty: number) => Promise<void>;
+  kill: (account_id?: string) => Promise<void>;
+  resume: (account_id: string) => Promise<void>;
 }
 
+let started = 0;
+let timer: ReturnType<typeof setInterval> | undefined;
+let unsub: (() => void) | undefined;
+
 export const useFleetStore = create<FleetState>((set, get) => ({
-  mode: '—', master: '', accounts: [], events: [], error: null, history: {},
+  online: false, mode: '—', master: '', symbol: 'MGC', last: 0, accounts: [], events: [], lastError: null,
   refresh: async () => {
     try {
-      const d = await api<{ mode: string; master: string; accounts: Record<string, Account> }>('/api/fleet/status');
-      const accounts = Object.values(d.accounts);
-      const history = { ...get().history };
-      for (const a of accounts) history[a.account_id] = [...(history[a.account_id] || []), a.equity].slice(-120);
-      set({ mode: d.mode, master: d.master, accounts, history, error: null });
-    } catch (e) { set({ error: String(e) }); }
+      const d = await api<{ mode: string; master: string; symbol: string; last: number; accounts: Record<string, Account> }>('/api/fleet/status');
+      set({ online: true, mode: d.mode, master: d.master, symbol: d.symbol, last: d.last, accounts: Object.values(d.accounts) });
+    } catch { set({ online: false }); }
   },
-  connect: () => {
-    let ws: WebSocket | null = null; let alive = true;
-    const open = () => {
-      ws = new WebSocket(`${WS}/ws/events`);
-      ws.onmessage = (m) => {
-        const ev = JSON.parse(m.data) as FleetEvent;
-        if (ev.type === 'mcp_tool') {
-          useAgentStore.getState().pushTool({ tool: String(ev.tool), args: (ev.args as Record<string, unknown>) || {}, result: ev.result ?? undefined, error: (ev.error as string) || undefined });
-        }
-        set((s) => ({ events: [ev, ...s.events].slice(0, 200) }));
-      };
-      ws.onclose = () => { if (alive) setTimeout(open, 3000); };
-    };
-    open();
-    const t = setInterval(() => get().refresh(), 2000);
-    get().refresh();
-    return () => { alive = false; clearInterval(t); ws?.close(); };
+  start: () => {
+    if (started++ === 0) {
+      get().refresh();
+      timer = setInterval(() => get().refresh(), 1500);
+      unsub = onEvent((e) => {
+        if (e.type === 'trade' || e.type === 'dom') return; // high-frequency; widgets subscribe directly
+        set((s) => ({ events: [e as FleetEvent, ...s.events].slice(0, 150) }));
+      });
+    }
+    return () => { if (--started === 0) { clearInterval(timer); unsub?.(); } };
   },
-  simulateFill: async (action, qty) => {
-    await api('/api/fleet/simulate_fill', { method: 'POST', body: JSON.stringify({ action, qty }) });
+  order: async (action, qty) => {
+    try { await api('/api/fleet/order', { method: 'POST', body: JSON.stringify({ action, qty }) }); set({ lastError: null }); }
+    catch (e) { set({ lastError: String(e) }); }
+    await get().refresh();
+  },
+  kill: async (account_id) => {
+    await api('/api/fleet/kill', { method: 'POST', body: JSON.stringify({ account_id: account_id ?? null }) });
+    await get().refresh();
+  },
+  resume: async (account_id) => {
+    await api(`/api/fleet/${account_id}/resume`, { method: 'POST' });
     await get().refresh();
   },
 }));
+
+export const usd = (n: number, dp = 2) => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });

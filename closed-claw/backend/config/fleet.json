@@ -11,18 +11,23 @@
     "LUCID_SLAVE_04"
   ],
   "rules": {
-    "starting_balance": 150000.00,
-    "starting_drawdown": 4500.00,
+    "starting_balance": 150000.0,
+    "starting_drawdown": 4500.0,
     "drawdown_type": "END_OF_DAY",
-    "mll_lock_threshold": 154600.00,
-    "mll_lock_level": 150100.00,
-    "news_trading_allowed": true,
-    "eval_target": 9000.00,
-    "eval_consistency_cap_usd": 3600.00,
-    "qualifying_day_threshold": 250.00,
+    "mll_lock_threshold": 154600.0,
+    "mll_lock_level": 150100.0,
+    "eval_target": 9000.0,
+    "eval_consistency_cap_usd": 3600.0,
+    "qualifying_day_threshold": 250.0,
     "qualifying_days_required": 5,
-    "max_payout_per_request": 3000.00,
+    "max_payout_per_request": 3000.0,
     "max_payouts_before_graduation": 5,
-    "cashout_opt_out_value_net": 2025.00
+    "cashout_opt_out_value_net": 2025.0
+  },
+  "broker": {
+    "name": "TRADOVATE",
+    "env": "demo",
+    "credentials": "env:TRADOVATE_USER,TRADOVATE_PASS,TRADOVATE_CID,TRADOVATE_SEC,TRADOVATE_APP_ID,TRADOVATE_DEVICE_ID",
+    "front_month_symbol": "MGCZ6"
   }
 }

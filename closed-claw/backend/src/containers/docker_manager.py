@@ -57,7 +57,7 @@ class DockerManager:
     def exec(self, container_id: str, command: str, timeout_note: str = "") -> dict:
         c = self.client.containers.get(container_id)
         if LABEL not in c.labels:
-            raise PermissionError("refusing to exec in a container not created by Closed Claw")
+            raise PermissionError("refusing to exec in a container not created by Apollo")
         res = c.exec_run(["sh", "-lc", command], demux=True)
         out, err = res.output if res.output else (b"", b"")
         return {"container_id": container_id, "exit_code": res.exit_code,
@@ -67,10 +67,20 @@ class DockerManager:
     def stream(self, container_id: str, command: str) -> Iterator[str]:
         c = self.client.containers.get(container_id)
         if LABEL not in c.labels:
-            raise PermissionError("not a Closed Claw sandbox")
+            raise PermissionError("not a Apollo sandbox")
         res = c.exec_run(["sh", "-lc", command], stream=True)
         for chunk in res.output:
             yield chunk.decode(errors="replace")
+
+    def attach_shell(self, container_id: str):
+        """Open an interactive TTY bash/sh session; returns the raw socket for streaming."""
+        c = self.client.containers.get(container_id)
+        if LABEL not in c.labels:
+            raise PermissionError("not an Apollo sandbox")
+        api = self.client.api
+        ex = api.exec_create(c.id, ["sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"],
+                             stdin=True, tty=True, environment={"TERM": "xterm-256color"})
+        return api.exec_start(ex["Id"], tty=True, socket=True)
 
     def remove(self, container_id: str) -> bool:
         try:
@@ -78,6 +88,6 @@ class DockerManager:
         except NotFound:
             return False
         if LABEL not in c.labels:
-            raise PermissionError("not a Closed Claw sandbox")
+            raise PermissionError("not a Apollo sandbox")
         c.remove(force=True)
         return True

@@ -1,4 +1,4 @@
-"""Vectorized MGC tick backtester with news-burst simulation and LucidFlex 150K EOD rules.
+"""Vectorized MGC tick backtester with scheduled-event spread-expansion simulation and LucidFlex 150K EOD rules.
 
 Uses a seeded synthetic tick stream (regular-hours random walk + scheduled CPI/Core PCE/
 NFP/FOMC momentum bursts). Synthetic results validate rule logic only -- they are NOT
@@ -39,6 +39,7 @@ class BacktestConfig:
     lot_size_micros: int = 20
     event_filter: list[str] | None = None
     seed: int = 7
+    spread_multiplier: float = 1.0  # stress test: scale all spreads/slippage
     tick_csv: str | None = None  # CSV with timestamp,price (ET). Overrides synthetic data.
     stage: str = "EVALUATION"
 
@@ -214,6 +215,7 @@ def run_backtest(cfg: BacktestConfig) -> dict:
         for e_idx, side, x_idx in _signals(cfg.strategy_name, secs, px, day_events, spread):
             cap = funded_max_contracts(acct.closed_profit) if cfg.stage == "FUNDED" else 100
             qty = min(cfg.lot_size_micros, cap)
+            spread = spread * cfg.spread_multiplier if cfg.spread_multiplier != 1.0 else spread
             slip_e = spread[e_idx] / 2 + (2 if spread[e_idx] > 1 else 0)
             slip_x = spread[x_idx] / 2
             entry = px[e_idx] + side * slip_e * TICK
@@ -245,7 +247,8 @@ def run_backtest(cfg: BacktestConfig) -> dict:
                 payouts += 1
         eod_peak = max(eod_peak, acct.closed_balance)
         max_dd_eod = max(max_dd_eod, eod_peak - acct.closed_balance)
-        equity_curve.append({"date": d.isoformat(), "balance": round(acct.closed_balance, 2), "mll": acct.mll})
+        equity_curve.append({"date": d.isoformat(), "balance": round(acct.closed_balance, 2), "mll": acct.mll,
+                             "drawdown": round(acct.closed_balance - eod_peak, 2)})
         d += timedelta(days=1)
 
     arr = np.array(pnl_list) if pnl_list else np.zeros(1)

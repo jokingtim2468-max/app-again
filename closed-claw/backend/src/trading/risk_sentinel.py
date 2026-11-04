@@ -51,7 +51,9 @@ class AccountState:
     liquidated: bool = False
     best_day_profit: float = 0.0
     position_qty: int = 0
+    avg_price: float = 0.0
     last_eod: str | None = None
+    status: str = "ACTIVE"  # ACTIVE | ELIGIBLE_FOR_CASHOUT | LIQUIDATED | KILLED
     events: list[str] = field(default_factory=list)
 
     @property
@@ -100,7 +102,7 @@ class RiskSentinel:
             reasons.append("contract_qty must be positive")
         if acct:
             if acct.halted:
-                reasons.append("account halted (graduation/cashout pending)")
+                reasons.append(f"account halted ({acct.status})")
             if acct.liquidated:
                 reasons.append("account liquidated (MLL breached)")
             projected = abs(acct.position_qty) + contract_qty
@@ -112,7 +114,7 @@ class RiskSentinel:
         return {"account_id": account_id, "stage": stage, "symbol": symbol, "requested_qty": contract_qty,
                 "max_allowed": cap, "approved_qty": approved_qty if not (acct and (acct.halted or acct.liquidated)) else 0,
                 "approved": not reasons, "reasons": reasons,
-                "news_blackout": False}  # news trading permitted by fleet rules
+                }
 
     # ---- intraday ---------------------------------------------------------
     def mark(self, account_id: str, open_pnl: float) -> AccountState:
@@ -121,8 +123,32 @@ class RiskSentinel:
         acct.open_pnl = open_pnl
         if acct.equity <= acct.mll and not acct.liquidated:
             acct.liquidated = True
+            acct.status = "LIQUIDATED"
             acct.events.append(f"LIQUIDATED: equity {acct.equity:.2f} <= MLL {acct.mll:.2f}")
         return acct
+
+    def apply_fill(self, account_id: str, action: str, qty: int, price: float) -> float:
+        """Update position/avg price; realize PnL on reductions. Returns realized PnL ($10/pt/MGC)."""
+        a = self.accounts[account_id]
+        signed = qty if action == "Buy" else -qty
+        realized = 0.0
+        if a.position_qty == 0 or (a.position_qty > 0) == (signed > 0):
+            new = a.position_qty + signed
+            a.avg_price = (a.avg_price * abs(a.position_qty) + price * qty) / abs(new)
+            a.position_qty = new
+        else:
+            close = min(qty, abs(a.position_qty))
+            direction = 1 if a.position_qty > 0 else -1
+            realized = (price - a.avg_price) * direction * close * 10.0
+            a.position_qty += signed
+            if a.position_qty == 0:
+                a.avg_price = 0.0
+            elif (a.position_qty > 0) != (direction > 0):  # flipped
+                a.avg_price = price
+            self.realize(account_id, realized)
+        if a.position_qty == 0:
+            a.open_pnl = 0.0
+        return realized
 
     def realize(self, account_id: str, pnl: float) -> AccountState:
         acct = self.accounts[account_id]
@@ -190,6 +216,7 @@ class RiskSentinel:
         """Payout 5 approved: halt the ID and build the 50% cashout election payload."""
         acct = self.accounts[account_id]
         acct.halted = True
+        acct.status = "ELIGIBLE_FOR_CASHOUT"
         now = datetime.now(ET)
         payload = {
             "type": "GRADUATION_CASHOUT_ELECTION",
@@ -205,6 +232,24 @@ class RiskSentinel:
         }
         acct.events.append(payload["operator_alert"])
         return payload
+
+    def kill(self, account_id: str | None = None) -> list[str]:
+        """Emergency stop: halt routing on one or all accounts."""
+        ids = [account_id] if account_id else list(self.accounts)
+        for aid in ids:
+            a = self.accounts[aid]
+            if a.status == "ACTIVE":
+                a.status = "KILLED"
+            a.halted = True
+            a.events.append("KILL SWITCH engaged")
+        return ids
+
+    def resume(self, account_id: str) -> bool:
+        a = self.accounts[account_id]
+        if a.status != "KILLED":
+            return False  # cashout / liquidated accounts stay frozen
+        a.status, a.halted = "ACTIVE", False
+        return True
 
     def save(self, path: Path = STATE_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

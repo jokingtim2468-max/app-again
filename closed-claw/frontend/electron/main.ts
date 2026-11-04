@@ -7,7 +7,7 @@ let win: BrowserWindow | null = null;
 function create() {
   win = new BrowserWindow({
     width: 1480, height: 920, minWidth: 1100, minHeight: 700,
-    backgroundColor: '#090A0F', title: 'Closed Claw', autoHideMenuBar: true,
+    backgroundColor: '#090A0F', title: 'Apollo Trading', autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   if (process.env.VITE_DEV) win.loadURL('http://127.0.0.1:5173');

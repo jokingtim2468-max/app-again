@@ -64,3 +64,37 @@ def test_state_persists(tmp_path):
     s.realize(a, 1000); s.end_of_day(a, "2025-01-02"); s.save(tmp_path / "st.json")
     s2 = RiskSentinel(); assert s2.load(tmp_path / "st.json")
     assert s2.accounts[a].mll == 146500 and s2.accounts[a].last_eod == "2025-01-02"
+
+
+def test_layouts_roundtrip(tmp_path, monkeypatch):
+    from backend.src import layouts
+    monkeypatch.setattr(layouts, "LAYOUT_FILE", tmp_path / "layouts.json")
+    for name, w in layouts.PRESETS.items():
+        layouts.validate(w)
+    layouts.save("Mine", [{"i": "c", "type": "widget-chart", "x": 0, "y": 0, "w": 12, "h": 10}], activate=True)
+    d = layouts.get_all()
+    assert d["active"] == "Mine" and d["layouts"]["Mine"]["widgets"][0]["type"] == "widget-chart"
+    import pytest
+    with pytest.raises(ValueError):
+        layouts.validate([{"type": "widget-chart", "x": 8, "w": 6}])
+    with pytest.raises(ValueError):
+        layouts.validate([{"type": "widget-news"}])
+
+
+def test_fills_avg_price_and_kill():
+    s = RiskSentinel(); a = "LUCID_SLAVE_01"
+    s.apply_fill(a, "Buy", 10, 2650.0); s.apply_fill(a, "Buy", 10, 2652.0)
+    assert s.accounts[a].avg_price == 2651.0
+    pnl = s.apply_fill(a, "Sell", 20, 2653.0)
+    assert pnl == 400.0 and s.accounts[a].position_qty == 0 and s.accounts[a].closed_balance == 150400
+    s.kill()
+    assert all(x.status == "KILLED" for x in s.accounts.values())
+    assert not s.validate_order(a, "EVALUATION", 1, "MGC")["approved"]
+    assert s.resume(a) and s.accounts[a].status == "ACTIVE"
+
+
+def test_graduation_status():
+    s = RiskSentinel(); a = "LUCID_SLAVE_04"; s.accounts[a].stage = "FUNDED"
+    for _ in range(5):
+        s.approve_payout(a, 100)
+    assert s.accounts[a].status == "ELIGIBLE_FOR_CASHOUT" and not s.resume(a)
