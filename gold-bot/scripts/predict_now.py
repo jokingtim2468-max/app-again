@@ -21,6 +21,7 @@ from goldbot.config import (ACTIVE_MONTHS, DEFAULT_CONTRACT, DEFAULT_PLAN, HORIZ
                             MODELS, MONTH_CODES, RISK, ROOT)
 from goldbot.data import latest_futures_close, load_daily, load_macro  # noqa: E402
 from goldbot.features import atr, build_features  # noqa: E402
+from goldbot.production import predict_bands  # noqa: E402
 
 
 def front_contract(today: pd.Timestamp, roll_days_before_fnd: int = 7) -> str:
@@ -53,18 +54,20 @@ def main() -> None:
                      "reference_price": round(ref, 1), "atr14": round(a_fut, 2),
                      "broker": "Tradovate", "plan": DEFAULT_PLAN, "horizons": {}}
     for name, h in HORIZONS.items():
-        f = MODELS / f"phase2_{name}.pkl"
+        f = MODELS / f"prod_{name}.pkl"
         if not f.exists():
-            raise SystemExit(f"missing {f}; run scripts/train_phase2.py first")
-        # Safe: these pickles are written only by scripts/train_phase2.py on this machine
+            raise SystemExit(f"missing {f}; run train_phase2.py then finalize_models.py")
+        # Safe: these pickles are written only by scripts/finalize_models.py on this machine
         # and are git-ignored. Never load a model file downloaded from elsewhere.
         with open(f, "rb") as fh:
             m = pickle.load(fh)
         x = X.loc[[t], m["features"]]
-        up, dn = m["up"].predict(x).iloc[0], m["dn"].predict(x).iloc[0]
-        p = float(m["dir"].predict_proba(x)[0])
-        bias = ("BULLISH" if p >= RISK["prob_long"] else
-                "BEARISH" if p <= RISK["prob_short"] else "NO CALL")
+        b = predict_bands(m, x)
+        up, dn = b["up"], b["dn"]
+        p_model = float(m["dir"].predict_proba(x)[0])
+        p = m["base_p_up"]  # published probability: base rate (no model beat it out of sample)
+        bias = ("BULLISH" if p_model >= RISK["prob_long"] else
+                "BEARISH" if p_model <= RISK["prob_short"] else "NO CALL")
         lv = {f"high_{q}": round(ref + up[q] * a_fut, 1) for q in up.index}
         lv |= {f"low_{q}": round(ref - dn[q] * a_fut, 1) for q in dn.index}
         # suggested bracket + size (risk % of account to the q90 extreme against you)
@@ -81,10 +84,13 @@ def main() -> None:
             size = int(min(RISK["max_contracts"],
                            np.floor(RISK["account_usd"] * RISK["risk_per_trade_pct"] / 100
                                     / risk_per_contract)))
-        out["horizons"][name] = {"sessions": h, "p_up": round(p, 3), "bias": bias, **lv,
+        out["horizons"][name] = {"sessions": h, "p_up_base_rate": round(p, 3),
+                                 "p_up_model_experimental": round(p_model, 3),
+                                 "bias_experimental": bias, "band_method": m["method"], **lv,
                                  "stop": stop, "target": target, "contracts": size,
                                  "model_trained_through": m["trained_through"]}
-        rows.append({"horizon": f"{name} ({h})", "P(up)": f"{p:.0%}", "bias": bias,
+        rows.append({"horizon": f"{name} ({h})", "P(up) hist": f"{p:.0%}",
+                     "model*": f"{p_model:.0%}", "bias*": bias, "method": m["method"],
                      "high q10/q50/q90": f"{lv['high_q10']} / {lv['high_q50']} / {lv['high_q90']}",
                      "low q10/q50/q90": f"{lv['low_q10']} / {lv['low_q50']} / {lv['low_q90']}",
                      "stop": stop, "target": target, f"{DEFAULT_CONTRACT.symbol}": size})
@@ -93,7 +99,9 @@ def main() -> None:
           f"ATR14 {a_fut:.1f}")
     print("q50 = most likely extreme; q10..q90 = 80% range for how far price stretches.\n")
     print(pd.DataFrame(rows).to_string(index=False))
-    print(f"\nSizing: {RISK['risk_per_trade_pct']}% of ${RISK['account_usd']:,} per trade. "
+    print("\n* experimental: no direction model has beaten the historical up-rate yet "
+          "(see reports/phase2b_direction.csv). Don't trade the bias column alone.")
+    print(f"Sizing: {RISK['risk_per_trade_pct']}% of ${RISK['account_usd']:,} per trade. "
           "Research only, not financial advice.")
 
     sd = ROOT / "signals"

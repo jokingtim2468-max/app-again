@@ -13,6 +13,14 @@ from sklearn.preprocessing import StandardScaler
 
 from .config import QUANTILES
 
+# Small, heavily regularised trees for long horizons (few independent samples).
+SIMPLE_PARAMS = dict(n_estimators=150, learning_rate=0.03, num_leaves=4, min_child_samples=300,
+                     subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=10.0,
+                     verbose=-1)
+SIMPLE_FEATURES = ["atr_pct", "vol_21", "vol_63", "vol_126", "atr_pct_rank_252", "gvz", "vix",
+                   "slope_63", "dist_sma200", "ret_63", "ret_252", "pos_252", "drawdown_ath",
+                   "us10y_d21", "dxy_r21"]
+
 GB_PARAMS = dict(n_estimators=300, learning_rate=0.03, num_leaves=15, min_child_samples=100,
                  subsample=0.8, subsample_freq=1, colsample_bytree=0.6, reg_lambda=5.0,
                  verbose=-1)
@@ -22,11 +30,12 @@ GB_PARAMS = dict(n_estimators=300, learning_rate=0.03, num_leaves=15, min_child_
 class QuantileBand:
     """LightGBM quantile regressors for one target (e.g. up_atr) at several quantiles."""
     quantiles: tuple[float, ...] = QUANTILES
+    params: dict | None = None
     models: dict[float, lgb.LGBMRegressor] = field(default_factory=dict)
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "QuantileBand":
         for q in self.quantiles:
-            m = lgb.LGBMRegressor(objective="quantile", alpha=q, **GB_PARAMS)
+            m = lgb.LGBMRegressor(objective="quantile", alpha=q, **(self.params or GB_PARAMS))
             m.fit(X, y)
             self.models[q] = m
         return self
@@ -71,3 +80,10 @@ class DirectionModel:
 def pinball(y: np.ndarray, q_pred: np.ndarray, q: float) -> float:
     e = y - q_pred
     return float(np.mean(np.maximum(q * e, (q - 1) * e)))
+
+
+def conformal_scale(past_y: np.ndarray, past_pred: np.ndarray, q: float) -> float:
+    """Multiplier k so that a fraction q of past outcomes fall at or below k * prediction.
+    Uses only predictions made before the period being adjusted."""
+    ratio = past_y / np.maximum(past_pred, 1e-6)
+    return float(np.quantile(ratio, q)) if len(ratio) >= 100 else 1.0

@@ -7,6 +7,10 @@
 
 ---
 
+> **Phase 2 status (2026-11-05):** high/low ranges are calibrated at all four horizons
+> (day/week/month/quarter); direction has no proven edge yet; MGC backtests are profitable only
+> as much as buy-and-hold was. Details: [reports/PHASE2.md](reports/PHASE2.md).
+
 ## 0. What the data already told us (baseline, Nov 2026)
 
 Walk-forward test 2012 → 2026, ~3,600–3,800 out-of-sample days, 0.02% round-trip cost
@@ -187,8 +191,9 @@ fetch_data.py  ──►  build_dataset.py  ──►  features.py  ──►  t
 
 | Phase | Work | Estimate |
 |---|---|---|
-| 1 ✅ | Free data collection, cleaning, baseline study (this commit) | "1 h" |
-| 2 | Point-in-time feature library, 3-class target, purged walk-forward, calibration | "4–6 h" |
+| 1 ✅ | Free data collection, cleaning, baseline study | "1 h" |
+| 2 ✅ | `goldbot` package, Tradovate MGC costs, multi-horizon high/low bands, purged walk-forward, conformal calibration, MGC backtests, `predict_now.py` (see [reports/PHASE2.md](reports/PHASE2.md)) | "2 h" |
+| 2c | London-open (07:00 UTC) day model, 1OZ contract sizing, day-horizon bracket on intraday bars | "2–3 h" |
 | 3 | Add COT, real yields, event calendar, GVZ regime, headline sentiment model | "4–6 h" |
 | 4 | Ensemble and regime filter, hold-out test, go/no-go report | "3–4 h" |
 | 5 | `daily_signal.py`, MT5 data bridge, MQL5 panel, alerts | "3–4 h" |

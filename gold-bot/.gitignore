@@ -5,3 +5,4 @@ __pycache__/
 models/
 signals/
 reports/phase2_oos_*.parquet
+reports/phase2b_oos_*.parquet

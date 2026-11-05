@@ -1,0 +1,17 @@
+horizon,method,auc,brier,acc,best
+day,full,0.518,0.2524,0.524,
+day,simple,0.512,0.2496,0.523,
+day,trend,0.513,0.2576,0.512,
+day,base,0.472,0.2495,0.527,<-
+week,full,0.512,0.2534,0.523,
+week,simple,0.508,0.2508,0.54,
+week,trend,0.502,0.2597,0.501,
+week,base,0.458,0.249,0.542,<-
+month,full,0.55,0.2569,0.559,
+month,simple,0.548,0.2519,0.563,
+month,trend,0.504,0.2593,0.504,
+month,base,0.457,0.249,0.546,<-
+quarter,full,0.617,0.2495,0.583,
+quarter,simple,0.535,0.254,0.553,
+quarter,trend,0.517,0.2569,0.516,
+quarter,base,0.44,0.2402,0.613,<-

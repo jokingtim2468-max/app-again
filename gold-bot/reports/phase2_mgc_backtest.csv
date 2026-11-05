@@ -1,0 +1,49 @@
+horizon,h,signals,rule,trades,trades_per_yr,win%,avg_$,$_per_yr,max_dd_$,profit_factor,sharpe,pos_years%
+day,1,model,hold to horizon end,1086,73.2,52.2,-0.63,-46.0,-7934.0,0.99,-0.02,67.0
+day,1,model,"stop=low q90, hold",1086,73.2,51.7,2.86,210.0,-5136.0,1.04,0.1,73.0
+day,1,model,"stop=low q90, target=high q50",1086,73.2,57.4,-4.35,-319.0,-7443.0,0.93,-0.2,60.0
+day,1,model,"stop=low q50, target=high q50",1086,73.2,42.2,-14.63,-1071.0,-17168.0,0.75,-0.87,20.0
+day,1,model,"stop=low q90, target=high q90",1086,73.2,51.8,1.93,141.0,-6087.0,1.03,0.07,73.0
+day,1,model,"limit@low q50, stop q90, tgt high q50",564,38.0,48.8,3.99,152.0,-3514.0,1.07,0.14,67.0
+day,1,always long,hold to horizon end,3822,257.7,50.5,1.6,413.0,-17959.0,1.02,0.1,40.0
+day,1,always long,"stop=low q90, hold",3822,257.7,50.0,1.54,396.0,-18070.0,1.02,0.1,47.0
+day,1,always long,"stop=low q90, target=high q50",3822,257.7,57.4,-6.69,-1724.0,-27473.0,0.9,-0.52,20.0
+day,1,always long,"stop=low q50, target=high q50",3822,257.7,44.1,-11.26,-2901.0,-43988.0,0.8,-1.22,7.0
+day,1,always long,"stop=low q90, target=high q90",3822,257.7,50.5,-0.93,-241.0,-19382.0,0.99,-0.06,27.0
+day,1,always long,"limit@low q50, stop q90, tgt high q50",1847,124.5,48.3,-6.19,-771.0,-15514.0,0.9,-0.33,40.0
+week,5,model,hold to horizon end,405,27.3,53.6,46.48,1270.0,-8110.0,1.32,0.47,60.0
+week,5,model,"stop=low q90, hold",430,29.0,54.0,47.84,1388.0,-5513.0,1.33,0.49,60.0
+week,5,model,"stop=low q90, target=high q50",519,35.0,59.5,28.31,992.0,-6310.0,1.21,0.39,67.0
+week,5,model,"stop=low q50, target=high q50",710,47.9,45.1,14.91,714.0,-7998.0,1.13,0.33,60.0
+week,5,model,"stop=low q90, target=high q90",442,29.8,56.1,46.4,1384.0,-5516.0,1.31,0.49,67.0
+week,5,model,"limit@low q50, stop q90, tgt high q50",226,15.3,49.1,17.71,270.0,-4549.0,1.15,0.19,47.0
+week,5,always long,hold to horizon end,764,51.6,52.6,24.84,1281.0,-14957.0,1.15,0.28,53.0
+week,5,always long,"stop=low q90, hold",803,54.2,53.5,28.38,1538.0,-14327.0,1.19,0.4,53.0
+week,5,always long,"stop=low q90, target=high q50",1051,70.9,60.3,15.53,1101.0,-16249.0,1.11,0.26,53.0
+week,5,always long,"stop=low q50, target=high q50",1376,92.9,49.6,8.86,823.0,-14429.0,1.07,0.23,40.0
+week,5,always long,"stop=low q90, target=high q90",835,56.4,54.6,19.36,1091.0,-19452.0,1.12,0.24,67.0
+week,5,always long,"limit@low q50, stop q90, tgt high q50",390,26.3,48.2,-0.86,-23.0,-11360.0,0.99,-0.01,53.0
+month,21,model,hold to horizon end,165,11.2,54.5,108.94,1218.0,-7169.0,1.38,0.35,53.0
+month,21,model,"stop=low q90, hold",187,12.7,50.8,98.78,1252.0,-14161.0,1.33,0.31,60.0
+month,21,model,"stop=low q90, target=high q50",243,16.5,59.7,68.86,1134.0,-13911.0,1.22,0.26,60.0
+month,21,model,"stop=low q50, target=high q50",370,25.1,43.8,21.69,544.0,-21045.0,1.08,0.12,60.0
+month,21,model,"stop=low q90, target=high q90",201,13.6,53.2,101.6,1384.0,-14161.0,1.34,0.33,60.0
+month,21,model,"limit@low q50, stop q90, tgt high q50",120,8.1,46.7,55.2,449.0,-9572.0,1.25,0.18,73.0
+month,21,always long,hold to horizon end,182,12.3,51.6,130.73,1612.0,-10907.0,1.48,0.45,60.0
+month,21,always long,"stop=low q90, hold",199,13.5,50.8,134.89,1819.0,-8396.0,1.5,0.47,67.0
+month,21,always long,"stop=low q90, target=high q50",281,19.0,60.5,74.26,1414.0,-16202.0,1.27,0.33,60.0
+month,21,always long,"stop=low q50, target=high q50",391,26.5,47.8,65.01,1723.0,-15167.0,1.27,0.38,53.0
+month,21,always long,"stop=low q90, target=high q90",216,14.6,53.2,108.31,1585.0,-16202.0,1.36,0.35,67.0
+month,21,always long,"limit@low q50, stop q90, tgt high q50",90,6.1,50.0,83.84,511.0,-2979.0,1.46,0.29,73.0
+quarter,63,model,hold to horizon end,56,3.8,55.4,625.21,2400.0,-5413.0,2.88,0.67,60.0
+quarter,63,model,"stop=low q90, hold",65,4.5,53.8,356.79,1590.0,-6366.0,1.83,0.41,67.0
+quarter,63,model,"stop=low q90, target=high q50",90,6.2,57.8,370.97,2288.0,-8289.0,1.88,0.48,53.0
+quarter,63,model,"stop=low q50, target=high q50",120,8.2,44.2,209.66,1724.0,-11105.0,1.55,0.4,60.0
+quarter,63,model,"stop=low q90, target=high q90",73,5.0,50.7,528.38,2644.0,-9872.0,2.3,0.57,53.0
+quarter,63,model,"limit@low q50, stop q90, tgt high q50",35,2.4,28.6,-244.23,-586.0,-7876.0,0.49,-0.35,23.0
+quarter,63,always long,hold to horizon end,60,4.1,60.0,471.93,1941.0,-7960.0,2.11,0.45,67.0
+quarter,63,always long,"stop=low q90, hold",70,4.8,55.7,389.31,1868.0,-12399.0,1.8,0.37,67.0
+quarter,63,always long,"stop=low q90, target=high q50",102,7.0,62.7,254.04,1776.0,-13146.0,1.61,0.4,53.0
+quarter,63,always long,"stop=low q50, target=high q50",134,9.2,49.3,217.33,1996.0,-13679.0,1.58,0.43,67.0
+quarter,63,always long,"stop=low q90, target=high q90",76,5.2,53.9,333.74,1738.0,-10432.0,1.71,0.42,60.0
+quarter,63,always long,"limit@low q50, stop q90, tgt high q50",28,1.9,28.6,-20.34,-39.0,-3842.0,0.94,-0.03,58.0
