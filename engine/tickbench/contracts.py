@@ -71,4 +71,8 @@ def apply_contract(settings: Settings, contract: str | None, symbol: str) -> dic
     settings.integer_qty = True
     if settings.qty_mode == "fixed":
         settings.default_qty = max(1.0, round(settings.default_qty))
+    else:
+        # futures are sized in whole contracts; % of equity would usually round to zero
+        settings.qty_mode = "fixed"
+        settings.default_qty = 1.0
     return c

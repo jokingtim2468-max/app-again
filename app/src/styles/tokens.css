@@ -1,0 +1,110 @@
+/* Tickbench design tokens.
+   Palette from trading terminals: graphite ink, warm paper text, an amber cursor accent.
+   Data colours come from the validated dataviz ramps (see docs/notes/ui-spec.md). */
+
+:root {
+  color-scheme: dark;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-num: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+  /* surfaces, back to front */
+  --bg: #0f1214;
+  --bg-raised: #14181b;
+  --panel: #171b1e;
+  --panel-2: #1c2125;
+  --inset: #111517;
+  --line: #262c31;
+  --line-strong: #343c42;
+
+  /* ink */
+  --ink: #e6e2d8;
+  --ink-2: #b5b0a5;
+  --ink-3: #7f7b73;
+  --ink-inverse: #14120f;
+
+  /* brand / interaction */
+  --accent: #f2a93b;
+  --accent-ink: #1b1305;
+  --accent-soft: rgba(242, 169, 59, 0.14);
+  --focus: #f6c26f;
+
+  /* data (validated: equity/benchmark pass all checks; P&L pair ships with signs + markers) */
+  --data-equity: #c98500;
+  --data-bench: #3987e5;
+  --data-up: #199e70;
+  --data-down: #e66767;
+  --data-1: #3987e5;
+  --data-2: #d95926;
+  --data-3: #199e70;
+  --data-4: #c98500;
+  --data-5: #d55181;
+  --data-grid: rgba(230, 226, 216, 0.06);
+  --data-axis: #7f7b73;
+  --candle-up: #2c8f6a;
+  --candle-down: #c25454;
+
+  /* status */
+  --ok: #2fb47e;
+  --warn: #e0a42e;
+  --bad: #e66767;
+
+  /* elevation: each layer has its own weight */
+  --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 18px -8px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  --shadow-3: 0 18px 40px -16px rgba(0, 0, 0, 0.7);
+  --shadow-4: 0 32px 80px -20px rgba(0, 0, 0, 0.8);
+
+  /* glass: floating chrome only */
+  --glass-bg: rgba(23, 27, 30, 0.62);
+  --glass-edge: rgba(255, 255, 255, 0.09);
+  --glass-solid: #1c2125;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #efece4;
+  --bg-raised: #f4f1ea;
+  --panel: #fbfaf7;
+  --panel-2: #f5f2eb;
+  --inset: #ebe7de;
+  --line: #e0dbd0;
+  --line-strong: #cfc8ba;
+  --ink: #1d1b17;
+  --ink-2: #4e4a42;
+  --ink-3: #847e72;
+  --ink-inverse: #fbfaf7;
+  --accent: #b86e00;
+  --accent-ink: #fffaf0;
+  --accent-soft: rgba(184, 110, 0, 0.12);
+  --focus: #b86e00;
+  --data-equity: #a86d00;
+  --data-bench: #2a78d6;
+  --data-up: #138a5f;
+  --data-down: #d13f3e;
+  --data-1: #2a78d6;
+  --data-2: #eb6834;
+  --data-3: #1baf7a;
+  --data-4: #a86d00;
+  --data-5: #e87ba4;
+  --data-grid: rgba(29, 27, 23, 0.07);
+  --data-axis: #847e72;
+  --candle-up: #2b8c66;
+  --candle-down: #c74c4c;
+  --ok: #1d8a5c;
+  --warn: #a8700a;
+  --bad: #c43c3c;
+  --shadow-1: 0 1px 0 rgba(60, 50, 30, 0.06);
+  --shadow-2: 0 6px 18px -10px rgba(60, 50, 30, 0.28);
+  --shadow-3: 0 18px 40px -18px rgba(60, 50, 30, 0.35);
+  --shadow-4: 0 32px 80px -24px rgba(60, 50, 30, 0.45);
+  --glass-bg: rgba(251, 250, 247, 0.7);
+  --glass-edge: rgba(29, 27, 23, 0.1);
+  --glass-solid: #fbfaf7;
+}

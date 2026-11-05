@@ -7,7 +7,7 @@
 
 input int    FastPeriod = 10;    // Fast SMA period
 input int    SlowPeriod = 30;    // Slow SMA period
-input double Lots       = 1.0;   // Lots per trade
+input double Lots       = 0.1;   // Lots per trade
 
 CTrade trade;
 int fastHandle;

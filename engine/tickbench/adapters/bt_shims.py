@@ -833,8 +833,14 @@ class BtrRunner:
 
     def order(self, side, size, price, exectype):
         b = self.ctx.broker
-        size = float(size) if size is not None else float(self.default_size)
-        reason = f"self.{'buy' if side > 0 else 'sell'}(size={size:g})"
+        reason = f"self.{'buy' if side > 0 else 'sell'}(" + (f"size={float(size):g}" if size is not None else "") + ")"
+        if size is None:  # no explicit size: use Tickbench's sizing setting (fixed / % of equity / cash)
+            self.ctx.log("signal", reason)
+            if b.position_size * side < 0:
+                b.submit_close(side=-side, reason=reason)
+                return _BtrOrder(None, side)
+            return _BtrOrder(b.submit_market(side, None, reason=reason), side)
+        size = float(size)
         if exectype in (_BtrOrder.Limit, _BtrOrder.Stop) and price is not None:
             kind = "limit" if exectype == _BtrOrder.Limit else "stop"
             return _BtrOrder(b.submit_pending(kind, side, float(price), size, reason=reason), side)

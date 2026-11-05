@@ -191,7 +191,7 @@ class PineAdapter(StrategyAdapter):
             applied.append(f"initial_capital={s.initial_capital:g}")
         qt = kw.get("default_qty_type")
         if qt is not None:
-            setv("qty_mode", {"fixed": "fixed", "percent_of_equity": "percent_of_equity", "cash": "cash"}.get(qt, "fixed"),
+            setv("qty_mode", {"fixed": "fixed", "percent_of_equity": "percent_equity", "cash": "cash"}.get(qt, "fixed"),
                  "default_qty_type")
         if "default_qty_value" in kw:
             setv("default_qty", float(kw["default_qty_value"]), "default_qty_value")

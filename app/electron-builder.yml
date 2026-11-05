@@ -1,0 +1,36 @@
+appId: com.tickbench.app
+productName: Tickbench
+copyright: Copyright © 2026 Tickbench
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+extraResources:
+  # PyInstaller one-folder build of the Python engine (created by CI / scripts/build-engine.ps1)
+  - from: ../engine/dist/tickbench-engine
+    to: engine
+    filter: ["**/*"]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: Tickbench-Setup-${version}.${ext}
+nsis:
+  oneClick: false                         # full wizard
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always           # desktop shortcut on every install/update
+  createStartMenuShortcut: true
+  shortcutName: Tickbench
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  license: build/license.txt
+publish:
+  provider: github
+  owner: jokingtim2468-max
+  repo: app-again
+  releaseType: release

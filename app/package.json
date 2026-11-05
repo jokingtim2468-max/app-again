@@ -1,0 +1,42 @@
+{
+  "name": "tickbench",
+  "productName": "Tickbench",
+  "version": "0.1.0",
+  "description": "Backtest Pine Script, MQL4/MQL5, Python, JavaScript, Tradovate and no-code strategies on your desktop.",
+  "author": "Tickbench",
+  "license": "MIT",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"npm:dev:electron\"",
+    "dev:electron": "tsc -p tsconfig.electron.json && wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build": "tsc -p tsconfig.electron.json && tsc --noEmit -p tsconfig.json && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
+    "lint": "npm run typecheck",
+    "start": "electron .",
+    "dist:win": "npm run build && electron-builder --win nsis --publish never",
+    "release:win": "npm run build && electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-sans": "5.1.0",
+    "@fontsource/jetbrains-mono": "5.1.1",
+    "echarts": "5.5.1",
+    "electron-updater": "6.3.9",
+    "lightweight-charts": "4.2.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.3",
+    "concurrently": "9.1.0",
+    "cross-env": "7.0.3",
+    "electron": "33.2.0",
+    "electron-builder": "25.1.8",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "wait-on": "8.0.1"
+  }
+}

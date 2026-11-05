@@ -108,7 +108,9 @@ def run(script: dict, data: dict, settings: dict | None = None, params: dict | N
     if "tick_size" not in (settings or {}) and not contract:
         s.tick_size = infer_tick(bars)
     params = dict(params or {})
-    params["_user_settings"] = sorted((settings or {}).keys())
+    # "prefer_script": settings declared inside the script (Pine strategy(...)) override the run settings
+    prefer_script = bool((settings or {}).get("prefer_script", False))
+    params["_user_settings"] = [] if prefer_script else sorted((settings or {}).keys())
     if (settings or {}).get("contract"):
         params["_contract"] = settings["contract"]
     adapter = build_adapter(kind, source, filename, script.get("options"), extra)

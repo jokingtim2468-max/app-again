@@ -6,7 +6,7 @@
 
 extern int    FastPeriod = 10;   // Fast SMA period
 extern int    SlowPeriod = 30;   // Slow SMA period
-extern double Lots       = 1.0;  // Lots per trade
+extern double Lots       = 0.1;  // Lots per trade
 extern int    Magic      = 2002;
 
 int CountMyOrders()

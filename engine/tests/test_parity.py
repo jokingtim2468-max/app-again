@@ -8,11 +8,12 @@ from tickbench.runner import run
 
 EXACT = ["sma_cross_native.py", "sma_cross_backtesting.py", "sma_cross_backtrader.py", "sma_cross_rules.json",
          "sma_cross.js", "sma_cross.pine", "sma_cross.mq4", "sma_cross.mq5", "tradovate_crossover_strategy.js"]
-SETTINGS = {"point_value": 1, "default_qty": 1}
+SETTINGS = {"point_value": 1, "default_qty": 1, "qty_mode": "fixed"}
 
 
 def trades(name):
-    r = run({"path": os.path.join(EX, "strategies", name)}, {"source": "csv", "path": GOLD}, SETTINGS)
+    params = {"Lots": 1.0} if name.endswith((".mq4", ".mq5")) else {}
+    r = run({"path": os.path.join(EX, "strategies", name)}, {"source": "csv", "path": GOLD}, SETTINGS, params)
     return r, [(t["entryBar"], t["exitBar"], round(t["entryPrice"], 6), round(t["exitPrice"], 6)) for t in r["trades"]]
 
 
@@ -36,3 +37,14 @@ def test_tradovate_indicator_matches_within_float_noise(reference):
     assert len(diffs) <= 1
     for a, b in diffs:
         assert a[0] == b[0] and abs(a[1] - b[1]) <= 1
+
+
+def test_pine_percent_of_equity_matches_native_sizing():
+    """strategy(default_qty_type=strategy.percent_of_equity) must size like Tickbench's % of equity mode."""
+    pine = run({"path": os.path.join(EX, "strategies", "sma_cross.pine")}, {"source": "csv", "path": GOLD},
+               {"prefer_script": True})
+    native = run({"path": os.path.join(EX, "strategies", "sma_cross_native.py")}, {"source": "csv", "path": GOLD},
+                 {"qty_mode": "percent_equity", "default_qty": 100})
+    assert pine["settings"]["qty_mode"] == "percent_equity"
+    assert round(pine["stats"]["netProfit"], 2) == round(native["stats"]["netProfit"], 2)
+    assert pine["trades"][0]["qty"] < 10  # ~$10k of gold, not 100 ounces

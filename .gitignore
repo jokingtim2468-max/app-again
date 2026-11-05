@@ -13,3 +13,5 @@ engine/build/
 .DS_Store
 *.log
 engine/tests/.tbdata/
+app/screenshots/
+app/release/
