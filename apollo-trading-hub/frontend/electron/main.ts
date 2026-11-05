@@ -49,7 +49,7 @@ let lastStatus = '';
 let pct = 0;
 // phases map to a range of the bar; each output line inside a phase nudges it toward the range's end
 const PHASES: Record<string, [number, number]> = {
-  'Checking for updates…': [0, 2], 'Updating Apollo Trading…': [2, 10],
+  'Checking for updates…': [0, 2], 'Updating Apollo Trading…': [2, 95],
   'First-time setup: finding Python…': [2, 6], 'Creating Apollo\'s Python environment…': [6, 18], 'Updating pip…': [18, 26],
   'Installing the Apollo engine (one time, ~1–3 minutes)…': [26, 30], 'Installing the Apollo engine…': [30, 85],
   'Starting the Apollo engine…': [85, 98], 'Ready': [100, 100],
@@ -106,18 +106,41 @@ async function ensurePython() {
 // On launch, if the branch on GitHub has moved on, run that script silently (rebuild + reinstall + relaunch) and quit.
 const SRC = path.join(app.getPath('home'), 'ApolloTrading');
 const BRANCH = 'claude/apollo-trading-hub';
-function checkRepoUpdate(): boolean {
+function repoUpdateAvailable(): boolean {
   const stampFile = path.join(SRC, '.apollo-installed-commit');
   if (!isWin || !app.isPackaged || !fs.existsSync(path.join(SRC, '.git')) || !fs.existsSync(stampFile)) return false;
   const r = spawnSync('git', ['-C', SRC, 'ls-remote', 'origin', `refs/heads/${BRANCH}`], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   const remote = r.status === 0 ? r.stdout.split(/\s/)[0] : '';
   const local = fs.readFileSync(stampFile, 'utf8').trim();
   if (!remote || remote === local) return false;
-  log(`update available ${local.slice(0, 7)} -> ${remote.slice(0, 7)}; running installer`);
-  const script = path.join(SRC, 'apollo-trading-hub', 'scripts', 'install_windows.ps1');
-  spawn('powershell', ['-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Silent', '-Relaunch'],
-    { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  log(`update available ${local.slice(0, 7)} -> ${remote.slice(0, 7)}`);
   return true;
+}
+// builds the new installer while the splash shows progress, then hands off to a tiny script that installs silently,
+// records the commit and starts the app again (the running app must be closed for the install to replace it)
+function buildUpdate(): Promise<{ setup: string; commit: string } | null> {
+  return new Promise((resolve) => {
+    const script = path.join(SRC, 'apollo-trading-hub', 'scripts', 'install_windows.ps1');
+    const p = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-BuildOnly'], { windowsHide: true });
+    const out = fs.createWriteStream(path.join(LOGS, 'update.log'), { flags: 'a' });
+    let setup = '', commit = '';
+    p.stderr.pipe(out);
+    p.stdout.on('data', (b) => {
+      const t = String(b); out.write(t);
+      setup = /APOLLO_SETUP=(.+)/.exec(t)?.[1].trim() || setup;
+      commit = /APOLLO_COMMIT=(\w+)/.exec(t)?.[1] || commit;
+      status('Updating Apollo Trading…');
+    });
+    p.on('exit', (code) => resolve(code === 0 && setup ? { setup, commit } : null));
+    p.on('error', () => resolve(null));
+  });
+}
+function installUpdateAndRestart(u: { setup: string; commit: string }) {
+  const exe = process.execPath.replace(/'/g, "''");
+  const ps = `Start-Sleep 2; Start-Process '${u.setup.replace(/'/g, "''")}' -ArgumentList '/S' -Wait; ` +
+    `Set-Content -Encoding ascii '${path.join(SRC, '.apollo-installed-commit').replace(/'/g, "''")}' '${u.commit}'; Start-Process '${exe}'`;
+  spawn('powershell', ['-NoProfile', '-WindowStyle', 'Hidden', '-Command', ps], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  quitting = true; app.quit();
 }
 
 // ---------- engine ----------
@@ -212,10 +235,11 @@ if (!app.requestSingleInstanceLock()) {
     showSplash();
     try {
       status('Checking for updates…');
-      if (checkRepoUpdate()) {
+      if (repoUpdateAvailable()) {
         status('Updating Apollo Trading…');
-        setTimeout(() => { quitting = true; app.quit(); }, 1500);  // the installer relaunches the app when it finishes
-        return;
+        const u = await buildUpdate();
+        if (u) { setBar(100); installUpdateAndRestart(u); return; }
+        log('update build failed; starting the installed version (see logs/update.log)');
       }
       await ensurePython();
       await startEngine();

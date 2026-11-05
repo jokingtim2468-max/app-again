@@ -18,7 +18,8 @@ param(
   [string]$Dir = "$HOME\ApolloTrading",
   [string]$Repo = "https://github.com/jokingtim2468-max/app-again.git",
   [switch]$Silent,
-  [switch]$Relaunch
+  [switch]$Relaunch,
+  [switch]$BuildOnly   # used by the app's self-update: build, print the setup path, don't install
 )
 $ErrorActionPreference = "Stop"
 function Step($t) { Write-Host "`n==> $t" -ForegroundColor Cyan }
@@ -72,6 +73,8 @@ try {
 
 $setup = Get-ChildItem (Join-Path $fe "release") -Filter "Apollo-Trading-Setup-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $setup) { throw "installer not found in $fe\release" }
+
+if ($BuildOnly) { Write-Output "APOLLO_SETUP=$($setup.FullName)"; Write-Output "APOLLO_COMMIT=$((git -C $Dir rev-parse HEAD).Trim())"; exit 0 }
 
 Step "Running the setup wizard: $($setup.Name)"
 if ($Silent) { Start-Process $setup.FullName -ArgumentList "/S" -Wait } else { Start-Process $setup.FullName -Wait }
