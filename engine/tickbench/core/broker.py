@@ -80,6 +80,7 @@ class Trade:
     mae: float = 0.0          # worst adverse excursion, price units (>= 0)
     mfe: float = 0.0          # best favourable excursion, price units (>= 0)
     best_price: float = 0.0   # for trailing stops
+    order_id: int = 0         # id of the order that opened it (MetaTrader ticket)
 
     @property
     def is_open(self) -> bool:
@@ -281,7 +282,7 @@ class Broker:
             self.log("warn", f"Order skipped: size rounds to 0 ({o.reason or o.tag})")
             return None
         t = Trade(self._next_trade, o.side, qty, self.bar, int(self.bars.time[self.bar]), price, tag=o.tag,
-                  entry_reason=o.reason, magic=o.magic, comment=o.comment)
+                  entry_reason=o.reason, magic=o.magic, comment=o.comment, order_id=o.id)
         self._next_trade += 1
         t.sl = o.sl if o.sl is not None else (price - o.side * o.sl_offset if o.sl_offset is not None else None)
         t.tp = o.tp if o.tp is not None else (price + o.side * o.tp_offset if o.tp_offset is not None else None)

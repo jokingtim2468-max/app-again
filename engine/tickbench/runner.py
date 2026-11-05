@@ -98,8 +98,13 @@ def run(script: dict, data: dict, settings: dict | None = None, params: dict | N
     bars = load_data(data)
     s = Settings.from_dict(settings)
     contract = apply_contract(s, (settings or {}).get("contract"), bars.symbol)
-    if kind == "mql4" or kind == "mql5":
+    if kind in ("mql4", "mql5"):
+        from .adapters.mql.adapter import guess_contract_size
         s.hedging = (settings or {}).get("hedging", True)
+        if "point_value" not in (settings or {}) and not contract:
+            s.point_value = guess_contract_size(bars.symbol)
+        if "default_qty" not in (settings or {}):
+            s.default_qty = 0.1
     if "tick_size" not in (settings or {}) and not contract:
         s.tick_size = infer_tick(bars)
     params = dict(params or {})
