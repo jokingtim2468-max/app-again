@@ -2,7 +2,7 @@
  * Apollo Trading desktop shell.
  * - First launch: creates a private Python environment in the user's data folder and installs the engine's packages
  *   (shows a setup window). Re-runs automatically when an update changes the requirements.
- * - Every launch: starts the Apollo engine (FastAPI backend on 127.0.0.1:5050) in the background, waits until it is
+ * - Every launch: starts the Apollo engine (FastAPI backend on 127.0.0.1:5050, or a free port if 5050 is taken) in the background, waits until it is
  *   healthy, opens the app, and stops the engine when the app closes.
  * - Auto-updates from GitHub releases (packaged builds).
  * Data (accounts, logs, settings, layouts, strategies) lives in %APPDATA%/Apollo Trading and survives updates.
@@ -13,6 +13,7 @@ import { ChildProcess, spawn, spawnSync } from 'child_process';
 import crypto from 'crypto';
 import fs from 'fs';
 import http from 'http';
+import net from 'net';
 import path from 'path';
 
 const isWin = process.platform === 'win32';
@@ -27,6 +28,7 @@ let win: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
 let engine: ChildProcess | null = null;
 let quitting = false;
+let PORT = 5050;  // preferred; moves to a free port when another program already uses 5050
 
 function log(line: string) {
   fs.mkdirSync(LOGS, { recursive: true });
@@ -121,18 +123,23 @@ function checkRepoUpdate(): boolean {
 // ---------- engine ----------
 function healthy(): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = http.get('http://127.0.0.1:5050/api/health', { timeout: 1500 }, (r) => { r.resume(); resolve(r.statusCode === 200); });
+    // only an Apollo engine counts: another program on the port answers differently
+    const req = http.get(`http://127.0.0.1:${PORT}/api/health`, { timeout: 1500 }, (r) => {
+      let body = ''; r.setEncoding('utf8'); r.on('data', (c) => { body += c; });
+      r.on('end', () => { try { resolve(r.statusCode === 200 && 'mode' in JSON.parse(body)); } catch { resolve(false); } });
+    });
     req.on('error', () => resolve(false)); req.on('timeout', () => { req.destroy(); resolve(false); });
   });
 }
 async function startEngine() {
   if (await healthy()) { log('engine already running, reusing it'); status('Ready'); return; }
   killStaleEngines();
+  if (!(await portFree(PORT))) { const old = PORT; PORT = await anyFreePort(); log(`port ${old} is used by another program; using ${PORT}`); }
   status('Starting the Apollo engine…');
   const out = fs.openSync(path.join(LOGS, 'engine.log'), 'a');
   engine = spawn(PY, ['-m', 'backend.src.server'], {
     cwd: ROOT, windowsHide: true, stdio: ['ignore', out, out],
-    env: { ...process.env, APOLLO_DATA_DIR: DATA, PYTHONUNBUFFERED: '1', PYTHONPATH: ROOT, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+    env: { ...process.env, APOLLO_DATA_DIR: DATA, PYTHONUNBUFFERED: '1', BACKEND_PORT: String(PORT), PYTHONPATH: ROOT, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
   });
   engine.on('exit', (code) => {
     log(`engine exited with ${code}`);
@@ -153,6 +160,18 @@ async function startEngine() {
   throw new Error(`The engine did not start.\n\n${tail}\n\nFull log: ${path.join(LOGS, 'engine.log')}`);
 }
 // an engine left over from an earlier failed launch holds port 5050 without answering; stop any python from our venv
+function portFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer().once('error', () => resolve(false)).once('listening', () => srv.close(() => resolve(true)));
+    srv.listen(port, '127.0.0.1');
+  });
+}
+function anyFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer().once('error', reject);
+    srv.listen(0, '127.0.0.1', () => { const p = (srv.address() as net.AddressInfo).port; srv.close(() => resolve(p)); });
+  });
+}
 function killStaleEngines() {
   if (!isWin) return;
   const ps = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${VENV.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
@@ -173,8 +192,8 @@ function createMain() {
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  if (process.env.VITE_DEV) win.loadURL('http://127.0.0.1:5173');
-  else win.loadFile(path.join(__dirname, '../dist/index.html'));
+  if (process.env.VITE_DEV) win.loadURL(`http://127.0.0.1:5173/?port=${PORT}`);
+  else win.loadFile(path.join(__dirname, '../dist/index.html'), { query: { port: String(PORT) } });
   win.once('ready-to-show', async () => { setBar(100); await new Promise((r) => setTimeout(r, 350)); win?.maximize(); win?.show(); splash?.close(); splash = null; });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.on('closed', () => { win = null; });

@@ -1,4 +1,4 @@
-import { api } from '../../api';
+import { API, api } from '../../api';
 import { FirmSummary, useFleetStore, usd } from '../../stores/useFleetStore';
 
 const STATUS_COLOR: Record<string, string> = { ACTIVE: 'var(--good)', KILLED: 'var(--bad)', LIQUIDATED: 'var(--bad)', ELIGIBLE_FOR_CASHOUT: 'var(--warn)', DAILY_LIMIT: 'var(--warn)', PARKED: 'var(--blue)', CLOSED: 'var(--muted)' };
@@ -38,7 +38,7 @@ function Gauge({ distance, full }: { distance: number; full: number }) {
 export default function FleetWidget({ compact = false }: { compact?: boolean }) {
   const { accounts, master, online, kill, resume, events, firms, refresh } = useFleetStore();
   const closeAcct = async (id: string) => { if (window.confirm(`Mark ${id} as CLOSED? This frees its funded slot.`)) { await api(`/api/fleet/${id}/close`, { method: 'POST', body: '{}' }); refresh(); } };
-  if (!online && !accounts.length) return <div className="empty">Backend offline (127.0.0.1:5050)</div>;
+  if (!online && !accounts.length) return <div className="empty">Backend offline ({API.replace('http://', '')})</div>;
   const alerts = events.filter((e) => ['graduation_alert', 'kill_switch', 'risk_clamp', 'bracket_exit', 'eod', 'lifecycle'].includes(e.type)).slice(0, 6);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

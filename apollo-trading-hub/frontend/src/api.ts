@@ -1,5 +1,7 @@
-export const API = 'http://127.0.0.1:5050';
-export const WS = 'ws://127.0.0.1:5050';
+// the desktop app passes the engine's port in the URL (?port=), since 5050 may be taken by another program
+const PORT = new URLSearchParams(window.location.search).get('port') || '5050';
+export const API = `http://127.0.0.1:${PORT}`;
+export const WS = `ws://127.0.0.1:${PORT}`;
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) } });
