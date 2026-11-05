@@ -40,13 +40,25 @@ function showSplash() {
   const html = `<body style="margin:0;background:#090A0F;color:#E3E7F0;font:14px 'Segoe UI',system-ui;display:grid;place-items:center;height:100vh">
     <div style="text-align:center;max-width:420px"><svg width="44" height="46" viewBox="0 0 100 104" fill="#EEF1F8"><path d="M50 4 L96 100 H72 L50 52 L28 100 H4 Z"/><path d="M50 66 L60 92 L50 85 L40 92 Z"/></svg>
     <h2 style="letter-spacing:.18em;font-size:15px;margin:14px 0 6px">APOLLO TRADING</h2>
-    <div id="s" style="color:#7D859B">Starting…</div><div id="d" style="color:#555D73;font-size:11px;margin-top:8px"></div></div></body>`;
+    <div style="width:280px;height:4px;margin:18px auto 0;background:#1E2230;border-radius:2px;overflow:hidden"><div id="b" style="width:0;height:100%;background:#FFFFFF;border-radius:2px;transition:width .4s ease"></div></div></div></body>`;
   splash.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 }
 let lastStatus = '';
-function status(text: string, detail = '') {
-  if (text !== lastStatus) { log(text); lastStatus = text; }  // log each phase once, not every pip line
-  splash?.webContents.executeJavaScript(`document.getElementById('s').textContent=${JSON.stringify(text)};document.getElementById('d').textContent=${JSON.stringify(detail)}`).catch(() => undefined);
+let pct = 0;
+// phases map to a range of the bar; each output line inside a phase nudges it toward the range's end
+const PHASES: Record<string, [number, number]> = {
+  'First-time setup: finding Python…': [2, 6], 'Creating Apollo\'s Python environment…': [6, 18], 'Updating pip…': [18, 26],
+  'Installing the Apollo engine (one time, ~1–3 minutes)…': [26, 30], 'Installing the Apollo engine…': [30, 85],
+  'Starting the Apollo engine…': [85, 98], 'Ready': [100, 100],
+};
+function setBar(p: number) {
+  pct = Math.max(pct, Math.min(100, p));
+  splash?.webContents.executeJavaScript(`document.getElementById('b').style.width='${pct.toFixed(1)}%'`).catch(() => undefined);
+}
+function status(text: string, _detail = '') {
+  const [lo, hi] = PHASES[text] ?? [pct, pct];
+  if (text !== lastStatus) { log(text); lastStatus = text; setBar(lo); }  // log each phase once, not every pip line
+  else setBar(pct + (hi - pct) * 0.04);  // creep toward the phase end, never past it
 }
 
 // ---------- python environment ----------
@@ -72,7 +84,7 @@ async function ensurePython() {
   fs.mkdirSync(LOGS, { recursive: true });
   const hash = crypto.createHash('sha256').update(REQS.filter(fs.existsSync).map((f) => fs.readFileSync(f)).join('\n')).digest('hex');
   const stamp = path.join(VENV, '.apollo-req-hash');
-  if (fs.existsSync(PY) && fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === hash) return;
+  if (fs.existsSync(PY) && fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === hash) { setBar(80); return; }
   if (!fs.existsSync(PY)) {
     status('First-time setup: finding Python…');
     const base = findPython();
@@ -94,7 +106,7 @@ function healthy(): Promise<boolean> {
   });
 }
 async function startEngine() {
-  if (await healthy()) { log('engine already running, reusing it'); return; }
+  if (await healthy()) { log('engine already running, reusing it'); status('Ready'); return; }
   status('Starting the Apollo engine…');
   const out = fs.openSync(path.join(LOGS, 'engine.log'), 'a');
   engine = spawn(PY, ['-m', 'backend.src.server'], {
@@ -111,7 +123,8 @@ async function startEngine() {
     }
   });
   for (let i = 0; i < 120; i++) {
-    if (await healthy()) return;
+    if (await healthy()) { status('Ready'); return; }
+    status('Starting the Apollo engine…');
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error(`The engine did not start. Details: ${path.join(LOGS, 'engine.log')}`);
@@ -133,7 +146,7 @@ function createMain() {
   });
   if (process.env.VITE_DEV) win.loadURL('http://127.0.0.1:5173');
   else win.loadFile(path.join(__dirname, '../dist/index.html'));
-  win.once('ready-to-show', () => { win?.maximize(); win?.show(); splash?.close(); splash = null; });
+  win.once('ready-to-show', async () => { setBar(100); await new Promise((r) => setTimeout(r, 350)); win?.maximize(); win?.show(); splash?.close(); splash = null; });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.on('closed', () => { win = null; });
 }
