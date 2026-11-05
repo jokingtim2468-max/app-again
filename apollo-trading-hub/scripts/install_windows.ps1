@@ -54,6 +54,16 @@ Push-Location $fe
 try {
   if (Test-Path "package-lock.json") { npm ci --no-audit --no-fund } else { npm install --no-audit --no-fund }
   if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+  # electron-builder's winCodeSign archive contains macOS symlinks that Windows refuses to create without admin /
+  # Developer Mode. Pre-extract it ourselves, skipping the macOS folder, so the build finds it ready.
+  $wcs = Join-Path $env:LOCALAPPDATA "electron-builder\Cache\winCodeSign\winCodeSign-2.6.0"
+  if (-not (Test-Path (Join-Path $wcs "rcedit-x64.exe"))) {
+    $arc = Join-Path $env:TEMP "winCodeSign-2.6.0.7z"
+    Invoke-WebRequest "https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z" -OutFile $arc -UseBasicParsing
+    New-Item -ItemType Directory -Force -Path $wcs | Out-Null
+    & (Join-Path $fe "node_modules\7zip-bin\win\x64\7za.exe") x $arc "-o$wcs" "-xr!darwin" -y | Out-Null
+    if (-not (Test-Path (Join-Path $wcs "rcedit-x64.exe"))) { throw "could not prepare winCodeSign tools" }
+  }
   npm run dist:win
   if ($LASTEXITCODE -ne 0) { throw "building the installer failed" }
 } finally { Pop-Location }
