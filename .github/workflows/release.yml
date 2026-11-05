@@ -1,0 +1,75 @@
+name: Build Windows installer
+
+# Push a tag like v0.1.0 to build Tickbench-Setup-0.1.0.exe and publish it as a GitHub Release.
+# Installed copies check that release feed and update themselves.
+# Manual runs build the installer as a downloadable artifact without publishing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r engine/requirements-dev.txt
+      - run: python -m pytest -q
+        working-directory: engine
+
+  windows:
+    needs: test-engine
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Build Python engine (PyInstaller)
+        shell: pwsh
+        run: ./scripts/build-engine.ps1
+
+      - name: Install app dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: App icon
+        working-directory: app
+        run: python scripts/make_icon.py
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: app
+        shell: bash
+        run: npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+
+      - name: Build and publish installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release:win
+
+      - name: Build installer (no publish)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        working-directory: app
+        run: npm run dist:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tickbench-Setup
+          path: |
+            app/release/*.exe
+            app/release/latest.yml

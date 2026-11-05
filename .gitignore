@@ -3,7 +3,6 @@ dist/
 dist-electron/
 release/
 build/
-*.spec
 __pycache__/
 *.pyc
 .pytest_cache/
