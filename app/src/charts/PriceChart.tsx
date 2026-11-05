@@ -51,11 +51,11 @@ export function PriceChart({ result, focusTrade, onPickTrade }: Props) {
       for (const tr of result.trades) {
         markers.push({ time: toTime(tr.entryTime), position: tr.side === "long" ? "belowBar" : "aboveBar",
           shape: tr.side === "long" ? "arrowUp" : "arrowDown", color: tr.side === "long" ? up : down,
-          text: result.trades.length <= 120 ? (tr.side === "long" ? "Buy" : "Sell") : "" , id: `e${tr.id}` });
+          text: result.trades.length <= 25 ? (tr.side === "long" ? "Buy" : "Sell") : "" , id: `e${tr.id}` });
         if (tr.exitTime != null) {
           markers.push({ time: toTime(tr.exitTime), position: tr.side === "long" ? "aboveBar" : "belowBar", shape: "circle",
             color: tr.pnl >= 0 ? up : down, id: `x${tr.id}`,
-            text: result.trades.length <= 120 ? `${tr.pnl >= 0 ? "+" : "−"}${num(Math.abs(tr.pnl), 0)}` : "" });
+            text: result.trades.length <= 25 ? `${tr.pnl >= 0 ? "+" : "−"}${num(Math.abs(tr.pnl), 0)}` : "" });
         }
       }
       markers.sort((a, b2) => (a.time as number) - (b2.time as number));
