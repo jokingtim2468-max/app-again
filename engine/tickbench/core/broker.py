@@ -128,6 +128,7 @@ class Order:
     close_qty: float | None = None
     magic: int = 0
     comment: str = ""
+    net: bool = False                 # netting order: reduce an opposite position first, open only the rest
 
     def to_dict(self) -> dict:
         return {"id": self.id, "kind": self.kind, "side": self.side, "qty": self.qty, "price": self.price,
@@ -207,13 +208,13 @@ class Broker:
     def submit_market(self, side: int, qty: float | None = None, *, tag: str = "", reason: str = "",
                       sl: float | None = None, tp: float | None = None, sl_offset: float | None = None,
                       tp_offset: float | None = None, trail: float | None = None, immediate: bool = False,
-                      magic: int = 0, comment: str = "") -> Order | None:
-        if side < 0 and not self.s.allow_short and self.position_size <= 0:
+                      magic: int = 0, comment: str = "", net: bool = False) -> Order | None:
+        if side < 0 and not self.s.allow_short and self.position_size <= 0 and not net:
             self.log("warn", f"Short entry ignored (shorting is turned off): {reason or tag}")
             return None
         o = Order(self._next_order, "market", side=side, qty=qty, tag=tag, reason=reason, sl=sl, tp=tp,
                   sl_offset=sl_offset, tp_offset=tp_offset, trail=trail, placed_bar=self.bar,
-                  magic=magic, comment=comment)
+                  magic=magic, comment=comment, net=net)
         self._next_order += 1
         if immediate:
             self._execute_market(o, self.bars.open[self.bar])
@@ -225,13 +226,13 @@ class Broker:
                        reason: str = "", sl: float | None = None, tp: float | None = None,
                        sl_offset: float | None = None, tp_offset: float | None = None,
                        trail: float | None = None, oco: str | None = None, expire_bar: int | None = None,
-                       magic: int = 0, comment: str = "") -> Order:
+                       magic: int = 0, comment: str = "", net: bool = False) -> Order:
         # Replace an existing resting order with the same tag (Pine semantics).
         if tag:
             self.pending = [p for p in self.pending if not (p.tag == tag and p.kind in ("limit", "stop") and p.close_ids is None and p.close_side == 0)]
         o = Order(self._next_order, kind, side=side, qty=qty, price=price, tag=tag, reason=reason, sl=sl, tp=tp,
                   sl_offset=sl_offset, tp_offset=tp_offset, trail=trail, placed_bar=self.bar, oco=oco,
-                  expire_bar=expire_bar, magic=magic, comment=comment)
+                  expire_bar=expire_bar, magic=magic, comment=comment, net=net)
         self._next_order += 1
         self.pending.append(o)
         self.log("order", f"{'Buy' if side > 0 else 'Sell'} {kind} @ {price:.6g} placed" + (f" ({reason})" if reason else ""))
@@ -330,6 +331,20 @@ class Broker:
             h(t)
 
     def _execute_market(self, o: Order, raw_price: float) -> None:
+        if o.net and not self.s.hedging:
+            want = self._size(o.qty, raw_price)
+            for t in [t for t in self.open if t.side == -o.side]:
+                if want <= 1e-12:
+                    break
+                q = min(want, t.qty)
+                want -= q
+                self.close_trade(t, raw_price, o.reason or "Opposite order", qty=q)
+            if want > 1e-12:
+                if o.side < 0 and not self.s.allow_short and self.position_size <= 0:
+                    return
+                o.qty = want
+                self._open_trade(o, raw_price)
+            return
         if self.s.hedging:
             self._open_trade(o, raw_price)
             return
