@@ -11,12 +11,14 @@
     -Branch claude/apollo-trading-hub   (git branch to build)
     -Dir    $HOME\ApolloTrading          (where the code is kept)
     -Silent                              (install without the wizard pages)
+    -Relaunch                            (start the app when done; used by the app's self-update)
 #>
 param(
   [string]$Branch = "claude/apollo-trading-hub",
   [string]$Dir = "$HOME\ApolloTrading",
   [string]$Repo = "https://github.com/jokingtim2468-max/app-again.git",
-  [switch]$Silent
+  [switch]$Silent,
+  [switch]$Relaunch
 )
 $ErrorActionPreference = "Stop"
 function Step($t) { Write-Host "`n==> $t" -ForegroundColor Cyan }
@@ -73,6 +75,12 @@ if (-not $setup) { throw "installer not found in $fe\release" }
 
 Step "Running the setup wizard: $($setup.Name)"
 if ($Silent) { Start-Process $setup.FullName -ArgumentList "/S" -Wait } else { Start-Process $setup.FullName -Wait }
+# lets the app know which commit is installed, so it can update itself when the branch moves on
+(git -C $Dir rev-parse HEAD).Trim() | Set-Content -Encoding ascii (Join-Path $Dir ".apollo-installed-commit")
+if ($Relaunch) {
+  $exe = Join-Path $env:LOCALAPPDATA "Programs\Apollo Trading\Apollo Trading.exe"
+  if (Test-Path $exe) { Start-Process $exe }
+}
 
 Write-Host "`nDone. Open 'Apollo Trading' from your Desktop or Start Menu." -ForegroundColor Green
 Write-Host "Installer kept at: $($setup.FullName)"

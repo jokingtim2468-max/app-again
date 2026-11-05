@@ -47,6 +47,7 @@ let lastStatus = '';
 let pct = 0;
 // phases map to a range of the bar; each output line inside a phase nudges it toward the range's end
 const PHASES: Record<string, [number, number]> = {
+  'Checking for updates…': [0, 2], 'Updating Apollo Trading…': [2, 10],
   'First-time setup: finding Python…': [2, 6], 'Creating Apollo\'s Python environment…': [6, 18], 'Updating pip…': [18, 26],
   'Installing the Apollo engine (one time, ~1–3 minutes)…': [26, 30], 'Installing the Apollo engine…': [30, 85],
   'Starting the Apollo engine…': [85, 98], 'Ready': [100, 100],
@@ -72,7 +73,7 @@ function findPython(): { cmd: string; args: string[] } | null {
 }
 function run(cmd: string, args: string[], label: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { cwd: ROOT, windowsHide: true });
+    const p = spawn(cmd, args, { cwd: ROOT, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1' } });
     const out = fs.createWriteStream(path.join(LOGS, 'setup.log'), { flags: 'a' });
     p.stdout.pipe(out); p.stderr.pipe(out);
     p.stdout.on('data', (b) => { const t = String(b).trim().split('\n').pop(); if (t) status(label, t.slice(0, 90)); });
@@ -98,6 +99,25 @@ async function ensurePython() {
   fs.writeFileSync(stamp, hash);
 }
 
+// ---------- update from the git repo ----------
+// The installer script clones the repo to ~/ApolloTrading and records the commit it built in .apollo-installed-commit.
+// On launch, if the branch on GitHub has moved on, run that script silently (rebuild + reinstall + relaunch) and quit.
+const SRC = path.join(app.getPath('home'), 'ApolloTrading');
+const BRANCH = 'claude/apollo-trading-hub';
+function checkRepoUpdate(): boolean {
+  const stampFile = path.join(SRC, '.apollo-installed-commit');
+  if (!isWin || !app.isPackaged || !fs.existsSync(path.join(SRC, '.git')) || !fs.existsSync(stampFile)) return false;
+  const r = spawnSync('git', ['-C', SRC, 'ls-remote', 'origin', `refs/heads/${BRANCH}`], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+  const remote = r.status === 0 ? r.stdout.split(/\s/)[0] : '';
+  const local = fs.readFileSync(stampFile, 'utf8').trim();
+  if (!remote || remote === local) return false;
+  log(`update available ${local.slice(0, 7)} -> ${remote.slice(0, 7)}; running installer`);
+  const script = path.join(SRC, 'apollo-trading-hub', 'scripts', 'install_windows.ps1');
+  spawn('powershell', ['-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-Silent', '-Relaunch'],
+    { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  return true;
+}
+
 // ---------- engine ----------
 function healthy(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -111,7 +131,7 @@ async function startEngine() {
   const out = fs.openSync(path.join(LOGS, 'engine.log'), 'a');
   engine = spawn(PY, ['-m', 'backend.src.server'], {
     cwd: ROOT, windowsHide: true, stdio: ['ignore', out, out],
-    env: { ...process.env, APOLLO_DATA_DIR: DATA, PYTHONUNBUFFERED: '1', PYTHONPATH: ROOT },
+    env: { ...process.env, APOLLO_DATA_DIR: DATA, PYTHONUNBUFFERED: '1', PYTHONPATH: ROOT, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
   });
   engine.on('exit', (code) => {
     log(`engine exited with ${code}`);
@@ -127,7 +147,9 @@ async function startEngine() {
     status('Starting the Apollo engine…');
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`The engine did not start. Details: ${path.join(LOGS, 'engine.log')}`);
+  let tail = '';
+  try { tail = fs.readFileSync(path.join(LOGS, 'engine.log'), 'utf8').trim().split('\n').slice(-6).join('\n'); } catch { /* no log */ }
+  throw new Error(`The engine did not start.\n\n${tail}\n\nFull log: ${path.join(LOGS, 'engine.log')}`);
 }
 function stopEngine() {
   if (!engine?.pid) return;
@@ -163,6 +185,12 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     showSplash();
     try {
+      status('Checking for updates…');
+      if (checkRepoUpdate()) {
+        status('Updating Apollo Trading…');
+        setTimeout(() => { quitting = true; app.quit(); }, 1500);  // the installer relaunches the app when it finishes
+        return;
+      }
       await ensurePython();
       await startEngine();
       createMain();
