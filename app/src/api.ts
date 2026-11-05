@@ -9,6 +9,7 @@ interface Bridge {
   onStarted(fn: (info: { method: string; id: number }) => void): () => void;
   openScript(): Promise<string | null>;
   openData(): Promise<string | null>;
+  openFiles(): Promise<string[]>;
   pathForFile(f: File): string;
   info(): Promise<{ version: string; platform: string; packaged: boolean }>;
   openExternal(url: string): Promise<void>;
@@ -44,6 +45,7 @@ function httpBridge(): Bridge {
     onStarted(fn) { started.add(fn); return () => { started.delete(fn); }; },
     async openScript() { return window.prompt("Path to a strategy script") || null; },
     async openData() { return window.prompt("Path to a CSV file") || null; },
+    async openFiles() { const p = window.prompt("Paths to add, separated by ;"); return p ? p.split(";").map((s) => s.trim()).filter(Boolean) : []; },
     pathForFile(f) { return (f as File & { path?: string }).path ?? f.name; },
     async info() { return { version: "dev", platform: "browser", packaged: false }; },
     async openExternal(url) { window.open(url, "_blank"); },

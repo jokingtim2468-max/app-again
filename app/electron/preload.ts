@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("tickbench", {
   },
   openScript: () => ipcRenderer.invoke("dialog:openScript"),
   openData: () => ipcRenderer.invoke("dialog:openData"),
+  openFiles: () => ipcRenderer.invoke("dialog:openFiles"),
   pathForFile: (f: File) => webUtils.getPathForFile(f),
   info: () => ipcRenderer.invoke("app:info"),
   openExternal: (url: string) => ipcRenderer.invoke("app:openExternal", url),

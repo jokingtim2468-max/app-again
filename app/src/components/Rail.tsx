@@ -75,17 +75,43 @@ export function Rail(p: Props) {
 // ---------------------------------------------------------------------------- script
 function ScriptSection({ script, loadScript, overrideKind }: Props) {
   const [over, setOver] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [files, setFiles] = useState<string[]>([]);
+  const [fileErr, setFileErr] = useState<EngineError | null>(null);
   const det = script.detection;
-  const pick = async () => { const f = await bridge.openScript(); if (f) loadScript(f); };
+  const pick = async () => { const f = await bridge.openScript(); if (f) { setPasting(false); loadScript(f); } };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f) loadScript(bridge.pathForFile(f));
+    const all = Array.from(e.dataTransfer.files);
+    if (!all.length) return;
+    setPasting(false);
+    loadScript(bridge.pathForFile(all[0]));
   };
+  useEffect(() => {
+    setFileErr(null);
+    if (!script.path) { setFiles([]); return; }
+    call<{ files: string[] }>("listFiles", { scriptPath: script.path }).then((r) => setFiles(r.files)).catch(() => setFiles([]));
+  }, [script.path]);
+  const addFiles = async () => {
+    const picked = await bridge.openFiles();
+    if (!picked.length) return;
+    try {
+      const r = await call<{ files: string[] }>("addFiles", { scriptPath: script.path, files: picked });
+      setFiles(r.files);
+      setFileErr(null);
+      loadScript(script.path); // re-detect so the script sees its new modules
+    } catch (e) {
+      setFileErr((e as { detail?: EngineError }).detail ?? { message: String(e) });
+    }
+  };
+  const siblings = files.filter((f) => f !== basename(script.path));
   return (
     <Section title="Strategy" aside={det ? `${det.lines} lines` : undefined}>
-      {!script.path ? (
+      {pasting ? (
+        <PasteBox onCancel={() => setPasting(false)} onSaved={(p) => { setPasting(false); loadScript(p); }} />
+      ) : !script.path ? (
+        <>
         <div className={`drop ${over ? "over" : ""}`} role="button" tabIndex={0} onClick={pick}
           onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && pick()}
           onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={onDrop}>
@@ -93,8 +119,24 @@ function ScriptSection({ script, loadScript, overrideKind }: Props) {
           <p>Tickbench works out which language it is: Pine Script, MetaTrader EAs, Python, JavaScript, Tradovate or no-code rules.</p>
           <div className="exts">{EXTS.map((x) => <span className="ext" key={x}>{x}</span>)}</div>
         </div>
-      ) : (
-        <div onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+        <button className="btn" onClick={() => setPasting(true)}>Paste code instead</button>
+        </>
+      ) : null}
+      {!pasting && script.path && (
+        <div className="grid2">
+          <button className="btn small" onClick={addFiles} title="Copy files the script needs (e.g. modules it require()s) next to it">Add files</button>
+          <button className="btn small" onClick={() => setPasting(true)}>Paste new code</button>
+        </div>
+      )}
+      {!pasting && siblings.length > 0 && (
+        <div className="evidence" title="Files kept next to the script; JavaScript require() can load them">
+          {siblings.slice(0, 12).map((f) => <span key={f}>{f}</span>)}
+          {siblings.length > 12 && <span>+{siblings.length - 12} more</span>}
+        </div>
+      )}
+      {fileErr && <InlineError e={fileErr} />}
+      {!script.path || pasting ? null : (
+        <div onDragOver={(e) => e.preventDefault()} onDrop={onDrop} style={{ order: -1 }}>
           <div className="file-card">
             <div className="file-glyph">{basename(script.path).split(".").pop()?.slice(0, 4)}</div>
             <div style={{ minWidth: 0 }}>
@@ -130,6 +172,58 @@ function ScriptSection({ script, loadScript, overrideKind }: Props) {
       )}
       {script.error && <InlineError e={script.error} />}
     </Section>
+  );
+}
+
+const GUESS: [RegExp, string][] = [
+  [/\/\/\s*@version\s*=|\bstrategy\s*\(|\bta\.\w+\(/, "Pine Script"],
+  [/#include\s*<Trade|\bCTrade\b|\bCopyBuffer\s*\(/, "MQL5 EA"],
+  [/\bOrderSend\s*\(|\bOP_BUY\b|\bextern\s+\w+/, "MQL4 EA"],
+  [/TdEvent\.|extends\s+Strategy\b/, "Tradovate strategy"],
+  [/\bcalculator\s*:|predef\.|map\s*\(\s*d\b/, "Tradovate indicator"],
+  [/import\s+backtrader|from\s+backtesting/, "Python library strategy"],
+  [/^\s*def\s+\w+|^\s*import\s+\w+/m, "Python"],
+  [/module\.exports|\bonBar\b|=>/, "JavaScript"],
+  [/^\s*\{[\s\S]*"(entry_long|entry|indicators)"/, "Rules (JSON)"],
+  [/^(entry_long|entry|indicators)\s*:/m, "Rules (YAML)"],
+];
+
+function PasteBox({ onCancel, onSaved }: { onCancel: () => void; onSaved: (path: string) => void }) {
+  const [text, setText] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<EngineError | null>(null);
+  const guess = text.trim() ? (GUESS.find(([re]) => re.test(text))?.[1] ?? "Unknown, you can pick the type after saving") : "";
+  const confirm = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await call<{ path: string }>("saveScript", { text, name });
+      onSaved(r.path);
+    } catch (e) {
+      setErr((e as { detail?: EngineError }).detail ?? { message: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <textarea className="input mono" autoFocus spellCheck={false} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder="Paste Pine Script, an MQL4/MQL5 EA, Python, JavaScript, Tradovate code or JSON/YAML rules…"
+        onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && text.trim()) { e.preventDefault(); e.stopPropagation(); confirm(); } }}
+        style={{ height: 220, padding: 9, resize: "vertical", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre" }} aria-label="Strategy code" />
+      <input className="input" placeholder="File name (optional)" value={name} onChange={(e) => setName(e.target.value)} aria-label="File name" />
+      {guess && <p className="hint">Looks like: <b style={{ color: "var(--ink-2)" }}>{guess}</b>. {text.split("\n").length} lines.</p>}
+      <div className="grid2">
+        <button className="btn" onClick={onCancel}>Cancel</button>
+        <button className="btn" disabled={!text.trim() || busy} onClick={confirm}
+          style={{ background: "var(--accent)", color: "var(--accent-ink)", borderColor: "transparent", fontWeight: 600 }}>
+          {busy ? "Saving…" : "Confirm"}
+        </button>
+      </div>
+      <p className="hint">Confirm saves it as a script file on this PC and loads it. <span className="kbd">Ctrl</span> <span className="kbd">Enter</span></p>
+      {err && <InlineError e={err} />}
+    </div>
   );
 }
 

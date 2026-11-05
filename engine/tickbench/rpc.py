@@ -172,6 +172,64 @@ def m_contracts(p, rid):
     return [{"root": k, **v} for k, v in CONTRACTS.items()]
 
 
+EXT_FOR_KIND = {"pine": ".pine", "mql4": ".mq4", "mql5": ".mq5", "python-native": ".py", "backtesting.py": ".py",
+                "backtrader": ".py", "javascript": ".js", "tradovate-indicator": ".js", "tradovate-strategy": ".js",
+                "rules-json": ".json", "rules-yaml": ".yaml"}
+
+
+def _scripts_dir() -> str:
+    from .store import data_dir
+    d = os.path.join(data_dir(), "scripts")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def m_save_script(p, rid):
+    """Turn pasted text into a real script file (extension picked from detection) and return its path."""
+    import re
+    import time
+    text = str(p.get("text") or "")
+    if not text.strip():
+        raise TickbenchError("Nothing to save: the pasted text is empty.", hint="Paste your strategy code first.")
+    kind = p.get("kind") or detect(text, "")["type"]
+    ext = EXT_FOR_KIND.get(kind, ".txt")
+    base = re.sub(r"[^A-Za-z0-9_-]+", "_", str(p.get("name") or "").strip()).strip("_")
+    if not base:
+        base = "pasted_" + time.strftime("%Y%m%d_%H%M%S")
+    base = re.sub(r"\.(pine|mq4|mq5|py|js|json|ya?ml|txt)$", "", base, flags=re.I)
+    # each pasted script gets its own folder, so files added for it stay together
+    folder = os.path.join(_scripts_dir(), base)
+    n = 2
+    while os.path.exists(folder):
+        folder = os.path.join(_scripts_dir(), f"{base}_{n}")
+        n += 1
+    os.makedirs(folder)
+    path = os.path.join(folder, base + ext)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    return {"path": path, "kind": kind}
+
+
+def m_add_files(p, rid):
+    """Copy supporting files (e.g. modules a Tradovate strategy require()s) into the script's folder."""
+    import shutil
+    folder = os.path.dirname(os.path.abspath(p["scriptPath"]))
+    added = []
+    for src in p.get("files") or []:
+        if not os.path.isfile(src):
+            raise TickbenchError(f"File not found: {src}")
+        dst = os.path.join(folder, os.path.basename(src))
+        if os.path.abspath(src) != os.path.abspath(dst):
+            shutil.copyfile(src, dst)
+        added.append(os.path.basename(dst))
+    return {"folder": folder, "added": added, "files": sorted(f for f in os.listdir(folder) if not f.startswith("."))}
+
+
+def m_list_files(p, rid):
+    folder = os.path.dirname(os.path.abspath(p["scriptPath"]))
+    return {"folder": folder, "files": sorted(f for f in os.listdir(folder) if not f.startswith("."))}
+
+
 def m_cancel(p, rid):
     _cancel.add(p["id"])
     return True
@@ -179,7 +237,8 @@ def m_cancel(p, rid):
 
 METHODS = {"ping": m_ping, "detect": m_detect, "describe": m_describe, "loadData": m_load_data, "run": m_run,
            "runs.list": m_runs_list, "runs.get": m_runs_get, "runs.delete": m_runs_delete,
-           "examples": m_examples, "contracts": m_contracts, "cancel": m_cancel}
+           "examples": m_examples, "contracts": m_contracts, "cancel": m_cancel,
+           "saveScript": m_save_script, "addFiles": m_add_files, "listFiles": m_list_files}
 
 
 def handle(req: dict) -> None:

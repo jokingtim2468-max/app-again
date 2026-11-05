@@ -66,6 +66,15 @@ ipcMain.handle("dialog:openScript", async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 
+ipcMain.handle("dialog:openFiles", async () => {
+  const r = await dialog.showOpenDialog(win!, {
+    title: "Add files the strategy uses",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "All files", extensions: ["*"] }],
+  });
+  return r.canceled ? [] : r.filePaths;
+});
+
 ipcMain.handle("dialog:openData", async () => {
   const r = await dialog.showOpenDialog(win!, {
     title: "Open price data (CSV)",
