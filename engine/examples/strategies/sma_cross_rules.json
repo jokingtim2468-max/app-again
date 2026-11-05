@@ -1,0 +1,10 @@
+{
+  "name": "SMA cross (no-code rules)",
+  "params": {"fast": 10, "slow": 30},
+  "indicators": {
+    "fast": {"type": "sma", "source": "close", "length": "$fast"},
+    "slow": {"type": "sma", "source": "close", "length": "$slow"}
+  },
+  "entry_long": {"crosses_above": ["fast", "slow"]},
+  "exit_long": {"crosses_below": ["fast", "slow"]}
+}

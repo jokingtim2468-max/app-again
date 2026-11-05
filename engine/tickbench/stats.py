@@ -151,8 +151,17 @@ def compute(bars: Bars, equity: np.ndarray, trades: list[Trade], initial: float,
     s["bars"] = len(bars)
     s["start"] = int(times[0])
     s["end"] = int(times[-1])
-    return {k: (_finite(v) if isinstance(v, (int, float, np.floating)) and not isinstance(v, bool) else v)
-            for k, v in s.items()}
+    out = {}
+    for k, v in s.items():
+        if isinstance(v, (bool, np.bool_)):
+            out[k] = bool(v)
+        elif isinstance(v, (int, np.integer)):
+            out[k] = int(v)
+        elif isinstance(v, (float, np.floating)):
+            out[k] = _finite(v)
+        else:
+            out[k] = v
+    return out
 
 
 def monthly_returns(times: np.ndarray, equity: np.ndarray) -> list[dict]:

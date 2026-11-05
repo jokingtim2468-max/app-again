@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from ..core.bars import Bars
+from ..core.bars import Bars, to_epoch_ms
 from ..errors import DataError
 from .loader import infer_timeframe
 
@@ -85,7 +85,7 @@ def download(symbol: str, interval: str = "1d", start: str | None = None, end: s
     if hasattr(df.columns, "levels") and df.columns.nlevels > 1:
         df.columns = df.columns.get_level_values(0)
     df = df.dropna(subset=["Close"])
-    t = (df.index.tz_localize("UTC") if df.index.tz is None else df.index.tz_convert("UTC")).astype("int64") // 1_000_000
+    t = to_epoch_ms(df.index)
     b = Bars.from_arrays(np.asarray(t), df["Open"].to_numpy(float), df["High"].to_numpy(float),
                          df["Low"].to_numpy(float), df["Close"].to_numpy(float),
                          df["Volume"].fillna(0).to_numpy(float) if "Volume" in df else None, ticker, interval)

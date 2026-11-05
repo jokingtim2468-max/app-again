@@ -60,3 +60,12 @@ class Bars:
         return Bars(np.asarray(time, dtype=np.int64), np.asarray(open_, dtype=float),
                     np.asarray(high, dtype=float), np.asarray(low, dtype=float),
                     np.asarray(close, dtype=float), vol, symbol, timeframe)
+
+
+def to_epoch_ms(values) -> np.ndarray:
+    """Datetime-like (Series/Index/array, any pandas resolution) -> int64 epoch milliseconds."""
+    import pandas as pd
+    idx = pd.DatetimeIndex(values)
+    if idx.tz is None:
+        idx = idx.tz_localize("UTC")
+    return np.asarray(idx.as_unit("ms").asi8, dtype=np.int64)

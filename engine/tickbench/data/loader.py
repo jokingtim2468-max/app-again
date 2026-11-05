@@ -19,7 +19,7 @@ import re
 import numpy as np
 import pandas as pd
 
-from ..core.bars import Bars
+from ..core.bars import Bars, to_epoch_ms
 from ..errors import DataError
 
 ALIASES = {
@@ -73,7 +73,7 @@ def _parse_times(series: pd.Series, extra: pd.Series | None = None) -> np.ndarra
     if dt.isna().mean() > 0.2:
         raise DataError("Couldn't read the date/time column.",
                         hint=f"First value looks like '{s.iloc[0]}'. Use ISO dates like 2024-01-31 or 2024-01-31 14:30.")
-    return (dt.astype("int64") // 1_000_000).to_numpy()
+    return to_epoch_ms(dt)
 
 
 def _pick(cols: list[str], names: list[str]) -> str | None:
@@ -198,7 +198,7 @@ def resample(bars: Bars, timeframe: str) -> Bars:
                        "volume": bars.volume}, index=idx)
     r = df.resample(rule, label="left", closed="left").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()
-    out = Bars.from_arrays(r.index.astype("int64") // 1_000_000, r.open, r.high, r.low, r.close, r.volume,
+    out = Bars.from_arrays(to_epoch_ms(r.index), r.open, r.high, r.low, r.close, r.volume,
                            bars.symbol, timeframe)
     out.meta = dict(bars.meta)
     return out
