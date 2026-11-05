@@ -127,6 +127,7 @@ function healthy(): Promise<boolean> {
 }
 async function startEngine() {
   if (await healthy()) { log('engine already running, reusing it'); status('Ready'); return; }
+  killStaleEngines();
   status('Starting the Apollo engine…');
   const out = fs.openSync(path.join(LOGS, 'engine.log'), 'a');
   engine = spawn(PY, ['-m', 'backend.src.server'], {
@@ -150,6 +151,12 @@ async function startEngine() {
   let tail = '';
   try { tail = fs.readFileSync(path.join(LOGS, 'engine.log'), 'utf8').trim().split('\n').slice(-6).join('\n'); } catch { /* no log */ }
   throw new Error(`The engine did not start.\n\n${tail}\n\nFull log: ${path.join(LOGS, 'engine.log')}`);
+}
+// an engine left over from an earlier failed launch holds port 5050 without answering; stop any python from our venv
+function killStaleEngines() {
+  if (!isWin) return;
+  const ps = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${VENV.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
+  spawnSync('powershell', ['-NoProfile', '-Command', ps], { windowsHide: true, timeout: 15000 });
 }
 function stopEngine() {
   if (!engine?.pid) return;

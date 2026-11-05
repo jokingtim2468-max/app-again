@@ -240,9 +240,14 @@ class KillReq(BaseModel):
     account_id: str | None = None
 
 
+@app.get("/api/docker/status")
+async def docker_status():
+    return {"docker": await asyncio.to_thread(docker_mgr.available)}
+
+
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "mode": bridge.mode, "feed": feed.source, "docker": docker_mgr.available()}
+    return {"ok": True, "mode": bridge.mode, "feed": feed.source}  # must stay instant: the desktop app polls it
 
 
 # ---------------- fleet & risk ----------------

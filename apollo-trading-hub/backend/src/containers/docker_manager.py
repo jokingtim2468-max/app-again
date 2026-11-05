@@ -16,13 +16,13 @@ class DockerManager:
     @property
     def client(self):
         if self._client is None:
-            self._client = docker.from_env()
+            self._client = docker.from_env(timeout=2)
         return self._client
 
     def available(self) -> bool:
         try:
             return bool(self.client.ping())
-        except DockerException:
+        except Exception:  # no Docker Desktop on Windows raises non-Docker errors (named pipe missing, etc.)
             return False
 
     def spawn(self, image: str = "python:3.11-slim", name: str | None = None, cpus: float = 1.0,

@@ -15,7 +15,7 @@ export default function TerminalWidget() {
 
   const load = async () => {
     try {
-      const h = await api<{ docker: boolean }>('/api/health'); setDocker(h.docker);
+      const h = await api<{ docker: boolean }>('/api/docker/status'); setDocker(h.docker);
       const b = await api<Box[]>('/api/containers'); setBoxes(b);
       if (!cid && b.find((x) => x.status === 'running')) setCid(b.find((x) => x.status === 'running')!.id);
     } catch (e) { setErr(String(e)); }
