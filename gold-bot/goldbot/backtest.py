@@ -72,7 +72,8 @@ def simulate(d: pd.DataFrame, sig: pd.DataFrame, h: int, stop_col: str | None,
         trades.append({"signal": t, "entry_date": d.index[fill_j], "exit_date": d.index[exit_j],
                        "side": side, "entry": fill_px, "exit": exit_px, "why": why,
                        "pnl_usd": pnl})
-        next_free = exit_j + 1
+        # a signal at the exit session's close enters at the NEXT open, so it is allowed
+        next_free = exit_j
     return pd.DataFrame(trades)
 
 
