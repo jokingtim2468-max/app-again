@@ -169,7 +169,7 @@ class AccountState:
         d.update(closed_profit=round(self.closed_profit, 2), equity=round(self.equity, 2), distance_to_mll=self.distance_to_mll,
                  max_contracts=max_contracts(self.stage, self.closed_profit, r), drawdown_type=r.get("drawdown_type"),
                  starting_drawdown=r.get("starting_drawdown"), daily_loss_limit=r.get("daily_loss_limit"),
-                 firm_name=r.get("firm_name"), day_pnl=round(self.day_pnl, 2))
+                 firm_name=r.get("firm_name"), day_pnl=round(self.day_pnl, 2), eval_target=r.get("eval_target"))
         d.pop("events", None)
         d["recent_events"] = self.events[-5:]
         return d

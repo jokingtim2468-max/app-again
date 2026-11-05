@@ -149,7 +149,7 @@ async def mark_to_market():
 async def lifespan(app: FastAPI):
     global bridge_task
     bridge_task = asyncio.create_task(bridge.run())
-    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), payout_watch(), balance_snapshots())]
+    tasks = [asyncio.create_task(c) for c in (eod_scheduler(), autosave(), feed.run(), mark_to_market(), cockpit.run(), payout_watch(), balance_snapshots())]
     await bots.start()
     yield
     await bots.stop()
@@ -159,7 +159,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Apollo Trading", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "app://.", "file://", "null"],
+app.add_middleware(CORSMiddleware, allow_origins=["app://.", "file://", "null"],
+                   allow_origin_regex=r"http://(127\.0\.0\.1|localhost)(:\d+)?",
                    allow_methods=["*"], allow_headers=["*"])
 
 
@@ -289,6 +290,7 @@ async def fleet_order(req: FillReq):
 
 
 async def flatten_fleet(reason: str) -> None:
+    cockpit.note_exit(reason)
     master = sentinel.config["master_account"]
     m = sentinel.accounts[master]
     if m.position_qty == 0:
@@ -719,6 +721,27 @@ async def ws_events(ws: WebSocket):
         pass
     finally:
         subscribers.discard(q)
+
+
+# ---------------- cockpit (params, intel, quick orders, studio) ----------------
+from . import cockpit  # noqa: E402
+
+
+def _set_bracket(b):
+    global bracket
+    bracket = b
+    if b:
+        _emit({"type": "bracket_set", **b})
+
+
+async def _cockpit_order(action: str, qty: int, tp_points: float, sl_points: float) -> dict:
+    return await fleet_order(FillReq(action=action, qty=qty, tp_ticks=max(1, round(tp_points / 0.1)),
+                                     sl_ticks=max(1, round(sl_points / 0.1))))
+
+
+cockpit.init(cockpit.Ctx(sentinel=sentinel, feed=feed, bridge=bridge, emit=_emit, order=_cockpit_order, flatten=flatten_fleet,
+                         kill=lambda a: kill(KillReq(account_id=a)), get_bracket=lambda: bracket, set_bracket=_set_bracket))
+app.include_router(cockpit.router)
 
 
 # ---------------- Telegram / Discord bots ----------------

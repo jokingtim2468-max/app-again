@@ -16,7 +16,8 @@ PATH = Path(os.getenv("APOLLO_SETTINGS", STATE_DIR / "settings.json"))
 _lock = threading.Lock()
 SECRET_KEYS = {"token", "secret"}
 NOTIFY_KINDS = ["startup", "payout_ready", "PASSED", "FAILED", "PARKED", "UNPARKED", "TARGET_HIT", "DAILY_LIMIT_HIT",
-                "PAYOUT", "kill_switch", "graduation_alert", "route_error"]
+                "PAYOUT", "kill_switch", "graduation_alert", "route_error",
+                "entry", "breakeven_step", "tp_hit", "sl_hit", "daily_loss_breaker", "panic"]
 
 DEFAULTS = {
     # "relay": use the shared Apollo bot (users just add it and /verify); "own": run your own bot token in this app
