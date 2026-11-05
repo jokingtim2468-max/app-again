@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XAU Relay Terminal</title>
+<meta name="description" content="Dual-bot Scout/Arbiter relay dashboard for a $50,000 prop evaluation trading gold (XAUUSD). Simulated feed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  window.tailwind = window.tailwind || {};
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          obsidian: '#0B0F17', panel: '#111722', panel2: '#151C29', line: '#1C2431', line2: '#263042',
+          ink: '#DCE3EE', muted: '#8692A6', dim: '#5A6578',
+          emerald: { DEFAULT: '#1FC98E' }, rose: { DEFAULT: '#F2506E' }, amber: { DEFAULT: '#F5A623' }, volt: '#2F8CFF', steel: '#A9B8CC'
+        },
+        fontFamily: {
+          sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+          cond: ['"IBM Plex Sans Condensed"', '"IBM Plex Sans"', 'sans-serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace']
+        }
+      }
+    }
+  };
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --bg: #0B0F17; --bg-2: #0E131D; --panel: #111722; --panel-2: #151C29;
+    --line: #1C2431; --line-2: #263042;
+    --ink: #DCE3EE; --muted: #8692A6; --dim: #5A6578;
+    --emerald: #1FC98E; --rose: #F2506E; --amber: #F5A623; --volt: #2F8CFF; --steel: #A9B8CC;
+    /* elevation scale: L0 page, L1 panel, L2 floating chrome, L3 verdict */
+    --e1: 0 1px 0 rgba(255,255,255,.025) inset;
+    --e2: 0 10px 30px -12px rgba(0,0,0,.65), 0 1px 0 rgba(255,255,255,.05) inset;
+    --e3: 0 24px 60px -24px rgba(0,0,0,.85), 0 1px 0 rgba(255,255,255,.06) inset;
+  }
+  html { color-scheme: dark; }
+  body {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(1200px 500px at 70% -10%, rgba(47,140,255,.07), transparent 60%),
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+    color: var(--ink);
+    font-feature-settings: "tnum" 1, "zero" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* film grain on the flat obsidian so it doesn't read sterile */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .cond { font-family: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif; }
+
+  /* L2 glass: only on chrome that floats over content */
+  .glass {
+    background: rgba(14,19,29,.72);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    box-shadow: var(--e2);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: #0E131D; }
+  }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--e1); }
+  .panel-head { display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem; border-bottom: 1px solid var(--line); }
+  .panel-head h2 { font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 600; font-size: 15px; letter-spacing: .01em; }
+  .panel-head .sub { color: var(--dim); font-size: 12px; }
+  .lbl { color: var(--muted); font-size: 12px; }
+  .num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  .up { color: var(--emerald); } .down { color: var(--rose); } .warn { color: var(--amber); } .volt { color: var(--volt); }
+
+  /* account strip */
+  .strip { background: linear-gradient(180deg, #121926, #0F1520); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--e2); }
+  .cell { padding: 14px 16px; min-width: 0; }
+  .cell + .cell { border-top: 1px solid var(--line); }
+  @media (min-width: 768px) { .cell + .cell { border-top: 0; } .strip-grid > .cell { border-left: 1px solid var(--line); } .strip-grid > .cell:first-child { border-left: 0; } }
+  @media (min-width: 768px) and (max-width: 1279px) { .strip-grid > .cell:nth-child(n+3) { border-top: 1px solid var(--line); } .strip-grid > .cell:nth-child(odd) { border-left: 0; } }
+  .bigfig { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; transition: color .5s; }
+  .flash-up { color: var(--emerald) !important; } .flash-down { color: var(--rose) !important; }
+  .track { position: relative; height: 8px; border-radius: 2px; background: #0A0E15; border: 1px solid var(--line); overflow: hidden; }
+  .fill { position: absolute; inset: 0 auto 0 0; transition: width .6s cubic-bezier(.2,.8,.2,1); }
+  .tick { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--line-2); }
+
+  /* circuit breaker */
+  .breaker { position: relative; height: 14px; border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+  .needle { position: absolute; top: -4px; width: 2px; height: 22px; background: var(--ink); box-shadow: 0 0 0 2px rgba(11,15,23,.9), 0 0 12px rgba(220,227,238,.5); transition: left .6s cubic-bezier(.2,.8,.2,1); }
+
+  /* chips */
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 500; padding: 1px 6px; border-radius: 3px; border: 1px solid; white-space: nowrap; }
+  .chip-volt { color: var(--volt); border-color: rgba(47,140,255,.35); background: rgba(47,140,255,.08); }
+  .chip-up { color: var(--emerald); border-color: rgba(31,201,142,.35); background: rgba(31,201,142,.08); }
+  .chip-down { color: var(--rose); border-color: rgba(242,80,110,.35); background: rgba(242,80,110,.08); }
+  .chip-warn { color: var(--amber); border-color: rgba(245,166,35,.35); background: rgba(245,166,35,.08); }
+  .chip-dim { color: var(--muted); border-color: var(--line-2); background: rgba(255,255,255,.02); }
+
+  /* scout */
+  .scout { border-top: 2px solid var(--volt); }
+  .hb { width: 7px; height: 7px; border-radius: 50%; background: var(--volt); box-shadow: 0 0 0 0 rgba(47,140,255,.6); }
+  .hb.beat { animation: hb .9s ease-out; }
+  @keyframes hb { 0% { box-shadow: 0 0 0 0 rgba(47,140,255,.7); } 100% { box-shadow: 0 0 0 9px rgba(47,140,255,0); } }
+  .lvl-row { display: grid; grid-template-columns: minmax(0,1.5fr) 1fr .9fr auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  .lvl-row:last-child { border-bottom: 0; }
+
+  /* arbiter */
+  .arbiter { border-top: 2px solid var(--steel); }
+  .mbar { position: relative; height: 6px; border-radius: 1px; background: #0A0E15; overflow: hidden; }
+  .mbar > i { position: absolute; inset: 0 auto 0 0; display: block; transition: width .7s cubic-bezier(.2,.8,.2,1), background-color .4s; }
+
+  /* verdict (L3) */
+  .verdict { background: radial-gradient(120% 80% at 50% 0%, #182234 0%, #111722 60%); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--e3); }
+  .vbadge { border-radius: 8px; padding: 12px 14px; text-align: center; border: 1px solid; transition: background-color .4s, border-color .4s, color .4s; }
+  .vbadge .head { font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .03em; line-height: 1.25; }
+  .vbadge .risk { font-family: "IBM Plex Mono", monospace; font-size: 12px; margin-top: 4px; opacity: .9; }
+  .v-approved { color: #C8FBE5; background: rgba(31,201,142,.14); border-color: rgba(31,201,142,.65); animation: glow 2.4s ease-in-out infinite; }
+  .v-hold { color: #FFE2B0; background: rgba(245,166,35,.12); border-color: rgba(245,166,35,.55); }
+  .v-halted { color: #FFD0D9; background: rgba(242,80,110,.14); border-color: rgba(242,80,110,.6); }
+  .v-passed { color: #C8FBE5; background: rgba(31,201,142,.10); border-color: rgba(31,201,142,.45); }
+  .v-closed { color: var(--muted); background: rgba(255,255,255,.03); border-color: var(--line-2); }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(31,201,142,.15), 0 0 22px -4px rgba(31,201,142,.45); }
+    50% { box-shadow: 0 0 0 1px rgba(31,201,142,.3), 0 0 38px 0 rgba(31,201,142,.6); }
+  }
+  .ring-bg { stroke: #0A0E15; } .ring-fg { transition: stroke-dashoffset .7s cubic-bezier(.2,.8,.2,1), stroke .4s; }
+
+  /* transcript */
+  .feed { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.5; }
+  .line { display: grid; grid-template-columns: 58px 66px minmax(0,1fr); gap: 8px; padding: 5px 12px; border-left: 2px solid transparent; }
+  .line .t { color: var(--dim); }
+  .line.who-scout .w { color: var(--volt); }
+  .line.who-arbiter .w { color: var(--steel); }
+  .line.tone-ok { border-left-color: var(--emerald); background: rgba(31,201,142,.05); }
+  .line.tone-warn { border-left-color: var(--amber); background: rgba(245,166,35,.05); }
+  .line.tone-bad { border-left-color: var(--rose); background: rgba(242,80,110,.06); }
+  .line.fresh { animation: fresh .6s ease-out; }
+  @keyframes fresh { from { background: rgba(47,140,255,.14); } }
+  .typing span { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--steel); margin-right: 3px; animation: typing 1s infinite; }
+  .typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes typing { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+
+  /* chart */
+  .chart-wrap { position: relative; height: 440px; }
+  @media (max-width: 767px) { .chart-wrap { height: 330px; } }
+  #chart { display: block; touch-action: pan-y; cursor: crosshair; }
+  .readout { position: absolute; left: 10px; top: 8px; padding: 5px 9px; border-radius: 6px; font-size: 11.5px; pointer-events: none;
+    background: rgba(17,23,34,.62); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.08); box-shadow: var(--e2); }
+  .tog { font-size: 12px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--dim); background: transparent; transition: color .15s, border-color .15s, background .15s, transform .12s; }
+  .tog[aria-pressed="true"] { color: var(--ink); background: rgba(255,255,255,.04); }
+  .tog:active { transform: scale(.96); }
+  .sw { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+  /* table */
+  .seg { display: inline-flex; padding: 2px; border-radius: 6px; background: #0A0E15; border: 1px solid var(--line); }
+  .seg button { font-size: 12.5px; padding: 5px 11px; border-radius: 4px; color: var(--muted); transition: background .15s, color .15s, transform .12s; }
+  .seg button[aria-selected="true"] { background: var(--panel-2); color: var(--ink); box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 2px 6px rgba(0,0,0,.4); }
+  .seg button:active { transform: scale(.97); }
+  table.ex { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ex th { text-align: left; font-weight: 500; color: var(--dim); font-size: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
+  table.ex td { padding: 8px 12px; border-bottom: 1px solid rgba(28,36,49,.7); white-space: nowrap; }
+  table.ex tr:hover td { background: rgba(255,255,255,.015); }
+  table.ex .r { text-align: right; }
+  .convbar { display: inline-block; width: 46px; height: 4px; background: #0A0E15; border-radius: 1px; vertical-align: middle; margin-right: 6px; position: relative; overflow: hidden; }
+  .convbar i { position: absolute; inset: 0 auto 0 0; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line-2); color: var(--muted); transition: color .15s, border-color .15s, transform .12s cubic-bezier(.3,1.6,.5,1); }
+  .btn:hover { color: var(--ink); border-color: #34405A; }
+  .btn:active { transform: scale(.92); }
+  .btn svg, .panel-head svg { width: 16px; height: 16px; }
+
+  /* the one orchestrated moment: boot sequence */
+  .boot { opacity: 0; transform: translateY(8px); animation: boot .55s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d, 0s); }
+  @keyframes boot { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .boot { animation: none; opacity: 1; transform: none; }
+    .v-approved { animation: none; box-shadow: 0 0 26px -4px rgba(31,201,142,.5); }
+    .hb.beat, .line.fresh, .typing span { animation: none; }
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: #232C3B; border-radius: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body class="min-h-screen font-sans">
+
+<!-- ============ TOP BAR (glass, floats over the page) ============ -->
+<header class="glass sticky top-0 z-40">
+  <div class="mx-auto max-w-[1640px] px-4 h-12 flex items-center gap-3 sm:gap-5">
+    <div class="flex items-center gap-2 shrink-0">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="5" width="7" height="8" rx="1" fill="none" stroke="#2F8CFF" stroke-width="1.6"/><rect x="10" y="5" width="7" height="8" rx="1" fill="none" stroke="#A9B8CC" stroke-width="1.6"/><path d="M8 9h2" stroke="#1FC98E" stroke-width="1.6"/></svg>
+      <span class="cond font-semibold text-[15px]">XAU Relay</span>
+      <span class="hidden md:inline text-dim text-xs">Lucid 50K evaluation</span>
+    </div>
+    <div class="flex items-baseline gap-2 min-w-0">
+      <span class="text-muted text-xs">XAUUSD</span>
+      <span id="tb-price" class="num text-[15px] font-medium">4,024.10</span>
+      <span id="tb-chg" class="num text-xs hidden sm:inline"></span>
+    </div>
+    <div class="ml-auto flex items-center gap-2 sm:gap-3">
+      <span class="hidden lg:inline-flex"><span class="chip chip-warn" title="Every price, fill and balance on this page is simulated. Not connected to a broker.">Simulated feed, 30× replay</span></span>
+      <span class="hidden sm:inline text-xs text-muted"><span id="session">London</span> session</span>
+      <span id="clock" class="num text-xs text-ink whitespace-nowrap">09:07:00 UTC</span>
+      <span class="flex items-center gap-1.5 text-xs text-muted" title="Engine refresh interval">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#263042" stroke-width="2"/><circle id="refresh-ring" cx="7" cy="7" r="5.5" fill="none" stroke="#2F8CFF" stroke-width="2" stroke-dasharray="34.56" stroke-dashoffset="34.56" transform="rotate(-90 7 7)"/></svg>
+        <span id="refresh-label" class="num hidden sm:inline">1s</span>
+      </span>
+      <button id="btn-pause" class="btn" aria-label="Pause feed" title="Pause feed"><i data-lucide="pause"></i></button>
+      <button id="btn-reset" class="btn" aria-label="Replay from 09:07" title="Replay from 09:07"><i data-lucide="rotate-ccw"></i></button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-[1640px] px-4 py-4 space-y-4">
+
+  <!-- ============ 1. ACCOUNT HEADER ============ -->
+  <section class="strip boot" style="--d:.0s" aria-label="Account">
+    <div class="strip-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1.05fr_1.2fr_1.55fr_1.2fr_1fr]">
+
+      <!-- balance / equity -->
+      <div class="cell">
+        <div class="flex items-center justify-between"><span class="lbl">Equity</span><span id="eq-dir" class="num text-xs text-dim"></span></div>
+        <div id="eq" class="bigfig mt-1">$51,708.60</div>
+        <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-[13px]">
+          <dt class="lbl">Balance</dt><dd id="bal" class="num text-right">$51,398.60</dd>
+          <dt class="lbl">Open P&amp;L</dt><dd id="float" class="num text-right up">+$310.00</dd>
+          <dt class="lbl">Starting capital</dt><dd class="num text-right text-muted">$50,000.00</dd>
+        </dl>
+      </div>
+
+      <!-- profit target -->
+      <div class="cell">
+        <div class="flex items-center justify-between"><span class="lbl">Profit target</span><span class="num text-xs text-muted">$53,000.00</span></div>
+        <div class="mt-1 flex items-baseline gap-2"><span id="pt-profit" class="bigfig up">+$1,708.60</span><span class="num text-xs text-dim">of $3,000</span></div>
+        <div class="track mt-3">
+          <div id="pt-fill" class="fill" style="width:57%;background:linear-gradient(90deg,#14805C,#1FC98E)"></div>
+          <span class="tick" style="left:25%"></span><span class="tick" style="left:50%"></span><span class="tick" style="left:75%"></span>
+        </div>
+        <div class="mt-2 flex justify-between text-[12px]"><span id="pt-pct" class="num text-ink">57.0% complete</span><span id="pt-left" class="num text-muted">$1,291.40 to go</span></div>
+      </div>
+
+      <!-- daily circuit breaker -->
+      <div class="cell">
+        <div class="flex items-center justify-between"><span class="lbl">Daily loss circuit breaker</span><span id="cb-state" class="chip chip-up">Armed</span></div>
+        <div class="mt-1 flex items-baseline gap-2"><span id="cb-pnl" class="bigfig up">+$993.65</span><span class="text-xs text-dim">today, incl. open</span></div>
+        <div class="relative mt-3">
+          <div class="breaker" style="background:linear-gradient(90deg, rgba(242,80,110,.42) 0%, rgba(242,80,110,.28) 27.5%, rgba(245,166,35,.22) 27.5%, rgba(245,166,35,.10) 50%, rgba(31,201,142,.08) 50%, rgba(31,201,142,.22) 100%)">
+            <span class="tick" style="left:27.5%;background:#F5A623;width:2px"></span>
+            <span class="tick" style="left:50%;background:#3A465C"></span>
+          </div>
+          <div id="cb-needle" class="needle" style="left:calc(99% - 1px)"></div>
+        </div>
+        <div class="mt-1.5 relative h-4 text-[11px] num">
+          <span class="absolute left-0 down">DQ −1K</span>
+          <span class="absolute warn" style="left:27.5%;transform:translateX(-50%)">Halt −450</span>
+          <span class="absolute text-dim" style="left:50%;transform:translateX(-50%)">0</span>
+          <span class="absolute right-0 text-dim">+1K</span>
+        </div>
+        <div id="cb-note" class="mt-1 text-[12px] text-muted">If #88414 stops out, today lands at +$208.65. Trading continues.</div>
+      </div>
+
+      <!-- drawdown floor -->
+      <div class="cell">
+        <div class="flex items-center justify-between"><span class="lbl">Static drawdown floor</span><span class="num text-xs text-muted">$47,500.00</span></div>
+        <div class="mt-1 flex items-baseline gap-2"><span id="dd-buf" class="bigfig">$4,208.60</span><span class="text-xs text-dim">cushion</span></div>
+        <div class="relative mt-3">
+          <div class="track" style="height:6px">
+            <div class="fill" style="left:0;width:45.45%;background:rgba(242,80,110,.18)"></div>
+            <div class="fill" style="left:45.45%;width:54.55%;background:rgba(31,201,142,.10)"></div>
+            <span class="tick" style="left:45.45%;background:#3A465C"></span>
+          </div>
+          <div id="dd-mark" class="absolute -top-[5px] w-[3px] h-4 bg-ink rounded-[1px]" style="left:76%;box-shadow:0 0 0 2px #0F1520"></div>
+        </div>
+        <div class="mt-1.5 flex justify-between text-[11px] num text-dim"><span>47.5K floor</span><span>50K start</span><span>53K target</span></div>
+        <div id="dd-note" class="mt-1 text-[12px] text-muted">Room for 8.9 full stops at $475</div>
+      </div>
+
+      <!-- timeline -->
+      <div class="cell">
+        <div class="lbl">Passing timeline</div>
+        <div class="mt-1 flex items-baseline gap-2"><span class="cond text-[26px] font-semibold leading-tight">Day <span id="tl-day">2</span></span><span class="text-sm text-muted">of 4</span></div>
+        <div id="tl-segs" class="mt-3 grid grid-cols-4 gap-1"></div>
+        <div id="tl-badge" class="mt-2.5 chip chip-up">On track for 4-day pass</div>
+        <div id="tl-note" class="mt-1.5 text-[12px] text-muted">Needs $430.47/day over 3 days</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. DUAL-BOT RELAY ============ -->
+  <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px_minmax(0,1fr)] gap-4" aria-label="Dual-bot consensus">
+
+    <!-- Scout -->
+    <article class="panel scout boot" style="--d:.12s">
+      <div class="panel-head">
+        <i data-lucide="radar" class="volt"></i>
+        <div class="min-w-0"><h2>Bot 1: The Scout</h2><div class="sub">Market-structure scanner</div></div>
+        <div class="ml-auto flex items-center gap-2">
+          <span id="hb" class="hb"></span>
+          <span id="scout-status" class="chip chip-volt">Tracking #88414</span>
+        </div>
+      </div>
+      <div class="px-4 pt-2 pb-1">
+        <div class="grid grid-cols-[minmax(0,1.5fr)_1fr_.9fr_auto] gap-2 text-[11.5px] text-dim pb-1 border-b border-line">
+          <span>Liquidity / structure</span><span>Level</span><span>From price</span><span class="text-right">State</span>
+        </div>
+        <div id="levels"></div>
+      </div>
+      <div class="mx-4 mb-4 mt-2 rounded-[4px] border border-line bg-[#0D121B] px-3 py-2.5">
+        <div class="flex items-center justify-between text-[11.5px] text-dim"><span>Latest detection</span><span class="num"><span id="scan-count">1,184</span> scans, <span id="latency">38</span> ms</span></div>
+        <div id="scout-last" class="mt-1 text-[13px] text-ink leading-snug">Asian low 4,019.86 swept to 4,013.90, reclaimed in 3 bars. Bullish FVG 4,019.40 to 4,021.10 left behind.</div>
+      </div>
+    </article>
+
+    <!-- Consensus verdict -->
+    <article class="verdict boot p-4 flex flex-col" style="--d:.2s" aria-live="polite">
+      <div class="flex items-center justify-between">
+        <span class="cond font-semibold text-[15px]">Consensus</span>
+        <span class="text-xs text-dim">threshold <span class="num text-ink">65%</span></span>
+      </div>
+      <div class="relative mx-auto my-3" style="width:168px;height:168px">
+        <svg viewBox="0 0 168 168" width="168" height="168" aria-hidden="true">
+          <circle class="ring-bg" cx="84" cy="84" r="70" fill="none" stroke-width="10"/>
+          <circle id="ring" class="ring-fg" cx="84" cy="84" r="70" fill="none" stroke-width="10" stroke-linecap="butt" stroke="#1FC98E" stroke-dasharray="439.82" stroke-dashoffset="96.76" transform="rotate(-90 84 84)"/>
+          <!-- threshold tick at 65% -->
+          <line x1="84" y1="6" x2="84" y2="22" stroke="#DCE3EE" stroke-width="2" transform="rotate(234 84 84)"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span id="conv" class="num text-[44px] font-medium leading-none">78</span>
+          <span class="text-xs text-muted mt-1">% conviction</span>
+        </div>
+      </div>
+      <div id="vbadge" class="vbadge v-approved">
+        <div id="vhead" class="head">APPROVED HIGH-RISK ENTRY</div>
+        <div id="vrisk" class="risk">$475 risk</div>
+      </div>
+      <dl id="sizing" class="mt-4 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[12.5px]"></dl>
+      <p id="sizing-note" class="mt-3 text-[12px] text-dim leading-snug"></p>
+    </article>
+
+    <!-- Arbiter -->
+    <article class="panel arbiter boot" style="--d:.28s">
+      <div class="panel-head">
+        <i data-lucide="scale" class="text-steel"></i>
+        <div class="min-w-0"><h2>Bot 2: The Arbiter</h2><div class="sub">Confluence auditor, weighted</div></div>
+        <span id="arb-status" class="ml-auto chip chip-dim">Re-auditing #88414</span>
+      </div>
+      <div id="meters" class="p-4 space-y-4"></div>
+    </article>
+  </section>
+
+  <!-- ============ 3. CHART + TRANSCRIPT ============ -->
+  <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-4">
+    <article class="panel boot" style="--d:.36s">
+      <div class="panel-head flex-wrap">
+        <i data-lucide="chart-candlestick" class="text-muted"></i>
+        <div><h2>Gold, M5</h2><div class="sub">Scroll to zoom, drag to pan, double-click to reset</div></div>
+        <div id="toggles" class="ml-auto flex flex-wrap gap-1.5">
+          <button class="tog" data-k="asian" aria-pressed="true"><span class="sw" style="background:#2F8CFF"></span>Asian range</button>
+          <button class="tog" data-k="vwap" aria-pressed="true"><span class="sw" style="background:#A9B8CC"></span>VWAP</button>
+          <button class="tog" data-k="fvg" aria-pressed="true"><span class="sw" style="background:#1FC98E;opacity:.6"></span>FVG</button>
+          <button class="tog" data-k="pd" aria-pressed="false"><span class="sw" style="background:#5A6578"></span>Prev. day H/L</button>
+          <button class="tog" data-k="levels" aria-pressed="true"><span class="sw" style="background:#F5A623"></span>Trade levels</button>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart" aria-label="Gold candlestick chart with trade levels"></canvas>
+        <div id="readout" class="readout num"></div>
+      </div>
+      <div id="levels-legend" class="flex flex-wrap gap-x-5 gap-y-1 px-4 py-2.5 border-t border-line text-[12px] num"></div>
+    </article>
+
+    <article class="panel boot flex flex-col" style="--d:.44s;min-height:420px">
+      <div class="panel-head">
+        <i data-lucide="messages-square" class="text-muted"></i>
+        <div><h2>Relay transcript</h2><div class="sub">Scout and Arbiter, live</div></div>
+        <button id="jump" class="ml-auto chip chip-volt hidden">New messages</button>
+      </div>
+      <div id="feed" class="feed flex-1 overflow-y-auto py-1" style="max-height:520px"></div>
+      <div class="px-3 py-2 border-t border-line text-[12px] text-dim h-9 flex items-center">
+        <span id="typing" class="hidden items-center gap-2"><span class="typing"><span></span><span></span><span></span></span><span id="typing-who">Arbiter is auditing</span></span>
+        <span id="idle-note">Channel open</span>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ 4. EXECUTIONS ============ -->
+  <section class="panel boot" style="--d:.52s">
+    <div class="panel-head flex-wrap gap-y-2">
+      <i data-lucide="list-filter" class="text-muted"></i>
+      <h2>Executions</h2>
+      <div class="seg ml-0 sm:ml-3" role="tablist">
+        <button id="tab-live" role="tab" aria-selected="true">Live executions <span id="n-live" class="num text-dim"></span></button>
+        <button id="tab-filt" role="tab" aria-selected="false">Filtered-out setups <span id="n-filt" class="num text-dim"></span></button>
+      </div>
+      <div id="ex-summary" class="ml-auto text-[12px] text-muted"></div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="ex">
+        <thead id="ex-head"></thead>
+        <tbody id="ex-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="pb-6 pt-1 text-[12px] text-dim">
+    Simulated data for interface demonstration. Not connected to a broker or to any prop firm account; no orders are sent.
+  </footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------------- config ---------------- */
+  const CFG = {
+    start: 50000, target: 53000, profitGoal: 3000, dailyHalt: 450, dqLimit: 1000, floor: 47500,
+    risk: 475, threshold: 65, passDays: 4, contract: 100, simStep: 30000, tf: 300000,
+    sessionEnd: 21 * 3600e3, minPace: 750
+  };
+  const DAY0 = Date.UTC(2026, 10, 5, 0, 0, 0);
+  const METERS = [
+    { k: 'htf', name: 'Higher-timeframe trend alignment', w: 0.30 },
+    { k: 'vwap', name: 'Institutional VWAP discount / premium', w: 0.25 },
+    { k: 'sweep', name: 'Liquidity absorption sweep depth', w: 0.25 },
+    { k: 'vol', name: 'Volume surge', w: 0.20 },
+  ];
+  const C = { emerald: '#1FC98E', rose: '#F2506E', amber: '#F5A623', volt: '#2F8CFF', steel: '#A9B8CC', ink: '#DCE3EE', muted: '#8692A6', dim: '#5A6578', line: '#1C2431' };
+
+  /* ---------------- helpers ---------------- */
+  const $ = s => document.querySelector(s);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const r2 = v => Math.round(v * 100) / 100;
+  const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const usd = (v, sign = false) => (v < 0 ? '−' : (sign && v > 0 ? '+' : '')) + '$' + nf2.format(Math.abs(v));
+  const px = v => nf2.format(v);
+  const hms = ms => new Date(ms).toISOString().slice(11, 19);
+  const hm = ms => new Date(ms).toISOString().slice(11, 16);
+  const toneCls = v => v > 0.004 ? 'up' : v < -0.004 ? 'down' : 'text-muted';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  let rand = mulberry32(2741);
+  const gauss = () => { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const lotsFor = dist => Math.floor(CFG.risk / (dist * CFG.contract) * 100) / 100;
+  const convOf = m => Math.round(METERS.reduce((s, x) => s + m[x.k] * x.w, 0));
+
+  /* ---------------- price history (00:00 → 09:05 UTC, M5) ---------------- */
+  const ASIAN_HI = 4031.12, ASIAN_LO = 4019.86;
+  function buildHistory() {
+    rand = mulberry32(2741);
+    const WP = [[0, 4026.0], [10, 4029.4], [20, 4022.6], [30, 4030.2], [40, 4021.2], [50, 4027.0], [60, 4023.6], [72, 4025.8], [80, 4024.4], [84, 4022.8], [86, 4021.4]];
+    const at = i => { for (let k = 0; k < WP.length - 1; k++) { const [a, pa] = WP[k], [b, pb] = WP[k + 1]; if (i >= a && i <= b) return pa + (pb - pa) * (i - a) / (b - a); } return WP[WP.length - 1][1]; };
+    const out = []; let prev = 4026.0;
+    for (let i = 0; i <= 86; i++) {
+      const asian = i < 72;
+      const floorLo = asian ? ASIAN_LO + 0.06 : 4020.4, capHi = asian ? ASIAN_HI - 0.06 : 4029;
+      let c = r2(clamp(at(i) + gauss() * 0.42, floorLo + 0.2, capHi - 0.2));
+      const o = prev;
+      let h = r2(Math.min(Math.max(o, c) + Math.abs(gauss()) * 0.32 + 0.06, Math.max(capHi, Math.max(o, c))));
+      let l = r2(Math.max(Math.min(o, c) - Math.abs(gauss()) * 0.32 - 0.06, Math.min(floorLo, Math.min(o, c))));
+      if (i === 30) h = ASIAN_HI;
+      if (i === 40) l = ASIAN_LO;
+      const v = Math.round((asian ? 640 : i >= 84 ? 1900 : 1050) * (0.75 + rand() * 0.5));
+      out.push({ t: DAY0 + i * CFG.tf, o, h, l, c, v }); prev = c;
+    }
+    // scripted London open: Asian-low sweep, reclaim, displacement leaving a bullish FVG, retest entry
+    const S = [
+      [4021.90, 4020.30, 4020.55, 2380], [4020.80, 4020.05, 4020.30, 2210], [4020.50, 4016.20, 4016.60, 3480],
+      [4016.90, 4013.90, 4015.10, 4380], [4017.40, 4014.60, 4017.10, 2900], [4019.40, 4016.80, 4018.95, 2650],
+      [4022.70, 4018.80, 4022.40, 3920], [4023.10, 4021.10, 4022.60, 2480], [4023.30, 4021.80, 4022.10, 1980],
+      [4022.40, 4021.30, 4021.60, 1720], [4021.90, 4021.15, 4021.40, 1650], [4021.70, 4020.70, 4021.25, 2100],
+      [4022.30, 4020.95, 4022.05, 1890], [4022.90, 4021.70, 4022.70, 1760], [4023.60, 4022.30, 4023.35, 1640],
+      [4023.80, 4022.60, 4022.85, 1500], [4023.40, 4022.10, 4023.20, 1420], [4023.95, 4022.90, 4023.10, 1380],
+      [4023.50, 4022.40, 4022.65, 1290], [4023.30, 4022.30, 4023.05, 1330], [4024.20, 4022.95, 4023.80, 1450],
+      [4024.40, 4023.40, 4023.85, 1510], [4024.30, 4023.70, 4024.10, 620]
+    ];
+    S.forEach(([h, l, c, v], j) => {
+      const o = prev;
+      out.push({ t: DAY0 + (87 + j) * CFG.tf, o, h: Math.max(h, o), l: Math.min(l, o), c, v }); prev = c;
+    });
+    return out;
+  }
+
+  /* ---------------- seed state ---------------- */
+  let S;
+  function seed() {
+    const candles = buildHistory();
+    const fvgIdx = 93;
+    S = {
+      tick: 0, paused: false, clock: DAY0 + 9 * 3600e3 + 7 * 60e3, // 09:07:00
+      candles,
+      asian: { hi: ASIAN_HI, lo: ASIAN_LO },
+      pdh: 4038.60, pdl: 4009.20,
+      fvg: { lo: 4019.40, hi: 4021.10, dir: 'BUY', i0: fvgIdx, state: 'respected' },
+      levels: [
+        { k: 'ah', name: 'Asian high', px: ASIAN_HI, side: 'hi', state: 'intact', note: '' },
+        { k: 'al', name: 'Asian low', px: ASIAN_LO, side: 'lo', state: 'swept', note: '07:25, −5.96' },
+        { k: 'pdh', name: 'Prev. day high', px: 4038.60, side: 'hi', state: 'armed', note: '' },
+        { k: 'pdl', name: 'Prev. day low', px: 4009.20, side: 'lo', state: 'armed', note: '' },
+      ],
+      day: 2, dayStartBalance: 50714.95, balance: 51398.60, realizedToday: 683.65,
+      halted: false, passed: false, dq: false, closed: false,
+      meters: { htf: 82, vwap: 71, sweep: 88, vol: 69 },
+      position: null, pending: null,
+      nextTicket: 88415, nextHold: 3116, nextSetupIn: 0, chatIn: 3, chatN: 0,
+      scans: 1184, lastScout: 'Asian low 4,019.86 swept to 4,013.90, reclaimed in 3 bars. Bullish FVG 4,019.40 to 4,021.10 left behind.',
+      log: [],
+      execs: [
+        { ticket: 88414, day: 'Nov 5', t: '08:10', dir: 'BUY', entry: 4021.00, exit: null, lots: 1.00, pnl: 0, rr: 2.5, be: 'Pending', conv: 78, status: 'OPEN', r: null },
+        { ticket: 88411, day: 'Nov 5', t: '02:35', dir: 'SELL', entry: 4030.40, exit: 4024.75, lots: 1.21, pnl: 683.65, rr: 2.5, be: 'Stepped 02:55', conv: 70, status: 'Trailed', r: 1.45 },
+        { ticket: 88409, day: 'Nov 4', t: '13:38', dir: 'BUY', entry: 4029.10, exit: 4029.10, lots: 0.84, pnl: 0, rr: 2.0, be: 'Stepped 13:52', conv: 72, status: 'BE stop', r: 0 },
+        { ticket: 88405, day: 'Nov 4', t: '10:15', dir: 'BUY', entry: 4035.60, exit: 4031.20, lots: 1.07, pnl: -470.80, rr: 2.5, be: 'Not reached', conv: 67, status: 'Stop loss', r: -1 },
+        { ticket: 88402, day: 'Nov 4', t: '07:42', dir: 'SELL', entry: 4047.20, exit: 4034.45, lots: 0.93, pnl: 1185.75, rr: 2.5, be: 'Stepped 08:05', conv: 81, status: 'Take profit', r: 2.5 },
+      ],
+      filtered: [
+        { id: 'H-3115', day: 'Nov 5', t: '06:35', dir: 'BUY', kind: 'FVG retest', entry: 4024.90, rr: 2.0, lots: 0.98, conv: 57, reason: 'Volume surge 36%' },
+        { id: 'H-3113', day: 'Nov 5', t: '04:15', dir: 'SELL', kind: 'M5 swing-high sweep', entry: 4027.60, rr: 2.5, lots: 1.12, conv: 63, reason: 'VWAP premium 41%' },
+        { id: 'H-3112', day: 'Nov 5', t: '01:40', dir: 'BUY', kind: 'Asian-low probe', entry: 4021.20, rr: 2.0, lots: 0.86, conv: 52, reason: 'Sweep depth 28%' },
+        { id: 'H-3109', day: 'Nov 4', t: '15:05', dir: 'BUY', kind: 'FVG retest', entry: 4026.30, rr: 3.0, lots: 0.79, conv: 61, reason: 'HTF trend 44%' },
+        { id: 'H-3107', day: 'Nov 4', t: '09:20', dir: 'SELL', kind: 'PDH sweep', entry: 4038.90, rr: 2.5, lots: 1.03, conv: 58, reason: 'Volume surge 31%' },
+      ],
+    };
+    S.position = {
+      ticket: 88414, dir: 'BUY', entry: 4021.00, lots: 1.00, dist: 4.75, sl: 4016.25, tp: 4032.88, be: 4025.75,
+      beStepped: false, risk: 475.00, rr: 2.5, conv: 78, meters: { ...S.meters }, openIdx: 98,
+      kind: 'Asian-low sweep + FVG retest', edge: 0.045, rec: S.execs[0]
+    };
+    const t = m => DAY0 + m * 60e3;
+    S.log = [
+      [t(420), 'scout', 'London open. Asian range locked 4,019.86 to 4,031.12 (11.26 wide). PDH 4,038.60 and PDL 4,009.20 armed.'],
+      [t(445), 'scout', 'Asian low 4,019.86 taken. Print 4,016.20 and extending.'],
+      [t(450), 'scout', 'Sweep low 4,013.90, 5.96 through the range. Sell-side liquidity cleared.'],
+      [t(450), 'arbiter', 'Acknowledged. No entry on the sweep candle. I need a reclaim and displacement first.'],
+      [t(465), 'scout', 'Reclaim confirmed. Displacement bar +3.45 left a bullish FVG 4,019.40 to 4,021.10.'],
+      [t(466), 'arbiter', 'Auditing BUY. HTF: H4 and H1 bullish, M15 higher low intact. Alignment 82.'],
+      [t(466), 'arbiter', 'Price 2.9 below session VWAP. Discount territory for a long: 71.'],
+      [t(467), 'arbiter', 'Sweep depth 5.96 with a 3-bar reclaim: absorption 88. Volume 2.5× the 20-bar average: 69.'],
+      [t(467), 'arbiter', 'Weighted conviction 78, above 65. Waiting for the FVG retest to enter.', 'ok'],
+      [t(490), 'scout', 'Retest tagged the FVG at 4,020.70. Spread 0.21.'],
+      [t(490), 'arbiter', 'APPROVED. BUY 1.00 lot at 4,021.00. Stop 4,016.25, target 4,032.88, BE trigger 4,025.75. Risk $475.00.', 'ok'],
+      [t(490), 'scout', 'Filled #88414. Tracking.'],
+      [t(520), 'scout', '#88414 at 4,023.35, +0.49R. FVG holding, Asian low reclaimed.'],
+      [t(540), 'arbiter', 'Re-audit #88414: 77%. Thesis intact, holding.'],
+    ].map(([tt, who, text, tone]) => ({ t: tt, who, text, tone }));
+  }
+
+  /* ---------------- derived ---------------- */
+  const last = () => S.candles[S.candles.length - 1];
+  function vwapSeries() {
+    let pv = 0, vv = 0; const out = new Array(S.candles.length);
+    S.candles.forEach((c, i) => { const tp = (c.h + c.l + c.c) / 3; pv += tp * c.v; vv += c.v; out[i] = pv / vv; });
+    return out;
+  }
+  let VW = [];
+  const vwapNow = () => VW[VW.length - 1];
+  const floating = () => { const p = S.position; if (!p) return 0; return r2((last().c - p.entry) * (p.dir === 'BUY' ? 1 : -1) * p.lots * CFG.contract); };
+  const equity = () => r2(S.balance + floating());
+  const todayPnl = () => r2(S.realizedToday + floating());
+  const conviction = () => convOf(S.meters);
+  function verdictState() {
+    if (S.dq) return 'dq'; if (S.passed) return 'passed'; if (S.halted) return 'halted'; if (S.closed) return 'closed';
+    return conviction() >= CFG.threshold ? 'approved' : 'hold';
+  }
+
+  /* ---------------- transcript ---------------- */
+  const feed = $('#feed');
+  const atBottom = () => feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48;
+  feed.addEventListener('scroll', () => { if (atBottom()) $('#jump').classList.add('hidden'); });
+  $('#jump').addEventListener('click', () => { feed.scrollTop = feed.scrollHeight; });
+  function lineEl(m, fresh) {
+    const d = document.createElement('div');
+    d.className = `line who-${m.who}${m.tone ? ' tone-' + m.tone : ''}${fresh ? ' fresh' : ''}`;
+    d.innerHTML = `<span class="t">${hms(m.t)}</span><span class="w">${m.who === 'scout' ? 'SCOUT' : 'ARBITER'}</span><span class="x"></span>`;
+    d.querySelector('.x').textContent = m.text;
+    return d;
+  }
+  function renderFeedAll() { feed.innerHTML = ''; S.log.forEach(m => feed.appendChild(lineEl(m, false))); feed.scrollTop = feed.scrollHeight; }
+  function say(who, text, tone) {
+    const m = { t: S.clock, who, text, tone }; S.log.push(m);
+    const pinned = atBottom() || feed.scrollHeight <= feed.clientHeight;
+    feed.appendChild(lineEl(m, true));
+    while (feed.children.length > 140) feed.removeChild(feed.firstChild);
+    if (S.log.length > 300) S.log.splice(0, S.log.length - 300);
+    if (pinned) feed.scrollTop = feed.scrollHeight; else $('#jump').classList.remove('hidden');
+    if (who === 'scout') S.lastScout = text;
+  }
+
+  /* ---------------- meter notes ---------------- */
+  function meterNote(k, v, dir) {
+    const buy = dir === 'BUY';
+    if (k === 'htf') return v >= 65 ? `H4 and H1 both ${buy ? 'bullish' : 'bearish'}, M15 structure agrees` : v >= 45 ? 'H1 aligned, H4 still ranging' : `H4 trend against the ${buy ? 'long' : 'short'}`;
+    if (k === 'vwap') return v >= 65 ? (buy ? 'Price in discount below session VWAP' : 'Price in premium above session VWAP') : v >= 45 ? 'Price hugging VWAP, no location edge' : (buy ? 'Buying into premium above VWAP' : 'Selling into discount below VWAP');
+    if (k === 'sweep') return v >= 65 ? 'Deep sweep, reclaimed within 3 bars' : v >= 45 ? 'Partial sweep, slow reclaim' : 'Shallow probe, resting liquidity not taken';
+    return v >= 65 ? `Volume ${(1 + v / 45).toFixed(1)}× the 20-bar average` : v >= 45 ? `Volume ${(0.6 + v / 90).toFixed(1)}× average` : 'Volume below average, no participation';
+  }
+  const meterColor = v => v >= 65 ? C.emerald : v >= 45 ? C.amber : C.rose;
+  function genMeters(bias = 0) {
+    const m = {}; METERS.forEach(x => { m[x.k] = Math.round(clamp(64 + bias + gauss() * 15, 18, 97)); }); return m;
+  }
+
+  /* ---------------- engine ---------------- */
+  function newCandleIfNeeded() {
+    const L = last();
+    if (S.clock >= L.t + CFG.tf) {
+      S.candles.push({ t: L.t + CFG.tf, o: L.c, h: L.c, l: L.c, c: L.c, v: 0 });
+      return true;
+    }
+    return false;
+  }
+
+  function step() {
+    S.tick++; S.clock += CFG.simStep; S.scans += 6 + Math.floor(rand() * 5);
+    newCandleIfNeeded();
+    const L = last(); const p = S.position;
+    // price process: drift toward position direction (edge varies per trade), mild VWAP reversion when flat
+    let drift = p ? (p.dir === 'BUY' ? 1 : -1) * p.edge : (vwapNow() - L.c) * 0.02;
+    const nx = r2(L.c + drift + gauss() * 0.42);
+    L.c = nx; L.h = Math.max(L.h, nx); L.l = Math.min(L.l, nx); L.v += Math.round(90 + rand() * 260);
+    VW = vwapSeries();
+
+    // session close
+    if (!S.closed && S.clock >= DAY0 + CFG.sessionEnd) {
+      S.closed = true;
+      if (S.position) closePosition(nx, 'Session close');
+      say('arbiter', `Session closed 21:00 UTC. Day ${S.day} net ${usd(S.realizedToday, true)}. No new risk until the next Asian range forms.`, 'warn');
+    }
+
+    detectStructure(L);
+    managePosition(nx);
+    riskChecks(nx);
+    runSetups();
+    chatter(nx);
+  }
+
+  function detectStructure(L) {
+    S.levels.forEach(lv => {
+      if (lv.state === 'swept') return;
+      const hit = lv.side === 'hi' ? L.h > lv.px : L.l < lv.px;
+      if (hit) {
+        lv.state = 'swept'; lv.note = hm(S.clock);
+        const dir = lv.side === 'hi' ? 'SELL' : 'BUY';
+        say('scout', `${lv.name} ${px(lv.px)} swept at ${px(lv.side === 'hi' ? L.h : L.l)}. Watching for a reclaim to ${dir === 'BUY' ? 'buy' : 'sell'}.`);
+        if (!S.position && !S.pending && tradable()) { S.nextSetupIn = 2; S.forced = { kind: `${lv.name} sweep`, dir, ref: lv.px }; }
+      }
+    });
+    const f = S.fvg;
+    if (f.state !== 'invalidated') {
+      const c = L.c;
+      if (f.dir === 'BUY' ? c < f.lo : c > f.hi) { f.state = 'invalidated'; say('scout', `FVG ${px(f.lo)} to ${px(f.hi)} closed through. Marking it invalid.`, 'warn'); }
+      else if (c >= f.lo && c <= f.hi && f.state === 'respected') { f.state = 'tested'; }
+    }
+  }
+
+  const tradable = () => !S.halted && !S.passed && !S.dq && !S.closed;
+
+  function managePosition(price) {
+    const p = S.position; if (!p) return;
+    const sign = p.dir === 'BUY' ? 1 : -1;
+    // keep the Arbiter re-auditing around the entry read
+    METERS.forEach(x => { S.meters[x.k] = Math.round(clamp(p.meters[x.k] + gauss() * 1.6, 0, 100)); });
+    if (!p.beStepped && (price - p.be) * sign >= 0) {
+      p.beStepped = true; p.sl = p.entry; p.rec.be = 'Stepped ' + hm(S.clock);
+      say('arbiter', `BE trigger ${px(p.be)} hit on #${p.ticket}. Stop stepped to entry ${px(p.entry)}. Trade is now risk-free.`, 'ok');
+    }
+    if ((price - p.tp) * sign >= 0) closePosition(p.tp, 'Take profit');
+    else if ((price - p.sl) * sign <= 0) closePosition(p.sl, p.beStepped ? 'BE stop' : 'Stop loss');
+  }
+
+  function closePosition(exitPx, reason) {
+    const p = S.position; const sign = p.dir === 'BUY' ? 1 : -1;
+    const pnl = r2((exitPx - p.entry) * sign * p.lots * CFG.contract);
+    S.balance = r2(S.balance + pnl); S.realizedToday = r2(S.realizedToday + pnl);
+    Object.assign(p.rec, { exit: exitPx, pnl, status: reason, r: r2(pnl / p.risk) });
+    if (!p.beStepped && p.rec.be === 'Pending') p.rec.be = 'Not reached';
+    S.position = null;
+    const tone = pnl > 0.5 ? 'ok' : pnl < -0.5 ? 'bad' : 'warn';
+    say('scout', `#${p.ticket} closed: ${reason.toLowerCase()} at ${px(exitPx)}. ${usd(pnl, true)} (${(pnl / p.risk >= 0 ? '+' : '') + (pnl / p.risk).toFixed(2)}R).`, tone);
+    // setup consumed: conviction resets until the Scout brings a new one
+    S.meters = { htf: 40 + Math.round(rand() * 18), vwap: 38 + Math.round(rand() * 18), sweep: 25 + Math.round(rand() * 20), vol: 35 + Math.round(rand() * 20) };
+    if (S.balance >= CFG.target) {
+      S.passed = true;
+      say('arbiter', `Balance ${usd(S.balance)} is through the ${usd(CFG.target)} target on day ${S.day}. Locking all new risk. Evaluation objective met.`, 'ok');
+    } else if (tradable()) {
+      say('arbiter', `Setup consumed. Conviction reset to ${conviction()}%. Holding out until the Scout brings the next sweep.`);
+    }
+    S.nextSetupIn = 10 + Math.floor(rand() * 14);
+  }
+
+  function riskChecks(price) {
+    const today = todayPnl();
+    if (!S.halted && today <= -CFG.dailyHalt) {
+      S.halted = true;
+      if (S.position) closePosition(price, 'Breaker flatten');
+      say('arbiter', `Daily PnL ${usd(todayPnl(), true)} crossed the −$450 halt. Flattened and halted for the day. ${usd(CFG.dqLimit + todayPnl())} left before the −$1,000 limit.`, 'bad');
+    }
+    if (!S.dq && equity() - S.dayStartBalance <= -CFG.dqLimit) { S.dq = true; say('arbiter', 'Daily loss limit breached. Account disqualified.', 'bad'); }
+  }
+
+  function runSetups() {
+    if (S.pending) {
+      const pd = S.pending; pd.stage++;
+      if (pd.stage === 1) {
+        S.meters = { ...pd.meters };
+        const parts = METERS.map(x => `${x.k === 'htf' ? 'HTF' : x.k === 'vwap' ? 'VWAP' : x.k === 'sweep' ? 'sweep' : 'volume'} ${pd.meters[x.k]}`).join(', ');
+        say('arbiter', `Audit ${pd.dir} ${pd.kind}: ${parts}.`);
+      } else if (pd.stage >= 2) {
+        const conv = convOf(pd.meters);
+        if (conv >= CFG.threshold && tradable()) openPosition(pd, conv);
+        else holdOut(pd, conv);
+        S.pending = null;
+      }
+      return;
+    }
+    if (S.position || !tradable()) return;
+    if (--S.nextSetupIn > 0) return;
+    // Scout proposes a setup from real recent structure
+    const L = last(); const price = L.c;
+    let kind, dir, ref;
+    if (S.forced) { ({ kind, dir, ref } = S.forced); S.forced = null; }
+    else {
+      const rec = S.candles.slice(-14, -1);
+      const sh = Math.max(...rec.map(c => c.h)), sl = Math.min(...rec.map(c => c.l));
+      if (S.fvg.state !== 'invalidated' && rand() < 0.25) { kind = 'FVG retest'; dir = S.fvg.dir; ref = (S.fvg.lo + S.fvg.hi) / 2; }
+      else if (price - sl < sh - price) { kind = 'M5 swing-low sweep'; dir = 'BUY'; ref = sl; }
+      else { kind = 'M5 swing-high sweep'; dir = 'SELL'; ref = sh; }
+    }
+    const vw = vwapNow();
+    const locBias = (dir === 'BUY' ? vw - price : price - vw) * 6; // location helps or hurts
+    const meters = genMeters(clamp(locBias, -14, 14));
+    S.pending = { stage: 0, kind, dir, ref, meters };
+    say('scout', `${kind} at ${px(ref)}. Proposing ${dir} from ${px(price)}. Handing to Arbiter.`);
+  }
+
+  function openPosition(pd, conv) {
+    const L = last(); const entry = L.c; const sign = pd.dir === 'BUY' ? 1 : -1;
+    const dist = r2(3.6 + rand() * 2.8);
+    const lots = lotsFor(dist); const rr = [2, 2.5, 3][Math.floor(rand() * 3)];
+    const rec = { ticket: S.nextTicket, day: 'Nov 5', t: hm(S.clock), dir: pd.dir, entry, exit: null, lots, pnl: 0, rr, be: 'Pending', conv, status: 'OPEN', r: null };
+    S.execs.unshift(rec);
+    S.position = {
+      ticket: S.nextTicket++, dir: pd.dir, entry, lots, dist, sl: r2(entry - sign * dist), tp: r2(entry + sign * dist * rr), be: r2(entry + sign * dist),
+      beStepped: false, risk: r2(lots * dist * CFG.contract), rr, conv, meters: { ...pd.meters }, openIdx: S.candles.length - 1, kind: pd.kind,
+      edge: (0.02 + rand() * 0.06) * (rand() < 0.3 ? -1 : 1), rec
+    };
+    const P = S.position;
+    say('arbiter', `APPROVED at ${conv}%. ${P.dir} ${P.lots.toFixed(2)} lot at ${px(entry)}. Stop ${px(P.sl)}, target ${px(P.tp)}, BE trigger ${px(P.be)}. Risk ${usd(P.risk)}.`, 'ok');
+    say('scout', `Filled #${P.ticket}. Tracking.`);
+  }
+
+  function holdOut(pd, conv) {
+    const weakest = METERS.reduce((a, b) => pd.meters[a.k] <= pd.meters[b.k] ? a : b);
+    const short = { htf: 'HTF trend', vwap: 'VWAP location', sweep: 'Sweep depth', vol: 'Volume surge' }[weakest.k];
+    const dist = r2(3.6 + rand() * 2.8);
+    S.filtered.unshift({ id: 'H-' + S.nextHold++, day: 'Nov 5', t: hm(S.clock), dir: pd.dir, kind: pd.kind, entry: last().c, rr: [2, 2.5, 3][Math.floor(rand() * 3)], lots: lotsFor(dist), conv, reason: `${short} ${pd.meters[weakest.k]}%` });
+    if (S.filtered.length > 60) S.filtered.pop();
+    say('arbiter', `HOLD OUT at ${conv}%, below 65. Weakest leg: ${short.toLowerCase()} ${pd.meters[weakest.k]}%. $0 at risk. Waiting for the next setup.`, 'warn');
+    S.nextSetupIn = 12 + Math.floor(rand() * 16);
+  }
+
+  function nearestLevel(price) {
+    const cands = S.levels.filter(l => l.state !== 'swept').map(l => ({ name: l.name, d: l.px - price }));
+    if (!cands.length) return null;
+    return cands.reduce((a, b) => Math.abs(a.d) < Math.abs(b.d) ? a : b);
+  }
+
+  function chatter(price) {
+    if (S.pending || S.closed) return;
+    if (--S.chatIn > 0) return;
+    S.chatIn = 5 + Math.floor(rand() * 4); S.chatN++;
+    const p = S.position;
+    if (p) {
+      const rNow = (price - p.entry) * (p.dir === 'BUY' ? 1 : -1) / p.dist;
+      if (S.chatN % 3 === 0) {
+        const c = conviction();
+        say('arbiter', `Re-audit #${p.ticket}: ${c}%. ${c >= CFG.threshold ? 'Thesis intact, holding.' : 'Edge fading. Stop stays where it is; no averaging.'}`);
+      } else {
+        const toTp = Math.abs(p.tp - price);
+        say('scout', `#${p.ticket} at ${px(price)}, ${(rNow >= 0 ? '+' : '') + rNow.toFixed(2)}R, ${usd(floating(), true)} open. ${toTp.toFixed(2)} to target${p.beStepped ? ', stop at entry' : ''}.`);
+      }
+    } else if (!tradable()) {
+      if (S.chatN % 4 === 0) say('scout', `Monitoring only. Price ${px(price)}. No orders while ${S.passed ? 'the target is locked' : 'the breaker is tripped'}.`);
+    } else {
+      const vw = vwapNow(); const nl = nearestLevel(price);
+      say('scout', `Scanning. Price ${px(price)}, ${price >= vw ? 'premium' : 'discount'} ${Math.abs(price - vw).toFixed(2)} vs VWAP ${px(vw)}.${nl ? ` Nearest untaken liquidity: ${nl.name} ${Math.abs(nl.d).toFixed(2)} ${nl.d > 0 ? 'above' : 'below'}.` : ''}`);
+    }
+  }
+
+  /* ---------------- render: header ---------------- */
+  let prevEq = null, prevPx = null;
+  function renderHeader() {
+    const eq = equity(), fl = floating(), price = last().c;
+    const eqEl = $('#eq');
+    eqEl.textContent = usd(eq);
+    if (prevEq !== null && eq !== prevEq) {
+      eqEl.classList.remove('flash-up', 'flash-down'); void eqEl.offsetWidth;
+      eqEl.classList.add(eq > prevEq ? 'flash-up' : 'flash-down');
+      clearTimeout(eqEl._t); eqEl._t = setTimeout(() => eqEl.classList.remove('flash-up', 'flash-down'), 650);
+      $('#eq-dir').textContent = (eq > prevEq ? '▲ ' : '▼ ') + usd(Math.abs(eq - prevEq));
+      $('#eq-dir').className = 'num text-xs ' + (eq > prevEq ? 'up' : 'down');
+    }
+    prevEq = eq;
+    $('#bal').textContent = usd(S.balance);
+    const fEl = $('#float'); fEl.textContent = S.position ? usd(fl, true) : 'Flat'; fEl.className = 'num text-right ' + (S.position ? toneCls(fl) : 'text-muted');
+
+    // profit target
+    const prof = r2(eq - CFG.start); const pct = clamp(prof / CFG.profitGoal, 0, 1);
+    const pEl = $('#pt-profit'); pEl.textContent = usd(prof, true); pEl.className = 'bigfig ' + toneCls(prof);
+    $('#pt-fill').style.width = (pct * 100).toFixed(2) + '%';
+    $('#pt-pct').textContent = (Math.max(0, prof) / CFG.profitGoal * 100).toFixed(1) + '% complete';
+    $('#pt-left').textContent = prof >= CFG.profitGoal ? 'Target reached' : usd(CFG.profitGoal - prof) + ' to go';
+
+    // circuit breaker: track spans −1000 … +1000
+    const tp = todayPnl();
+    const cb = $('#cb-pnl'); cb.textContent = usd(tp, true); cb.className = 'bigfig ' + (tp <= -CFG.dailyHalt ? 'down' : tp < 0 ? 'warn' : 'up');
+    $('#cb-needle').style.left = `calc(${(clamp((tp + 1000) / 2000, 0.005, 0.995) * 100).toFixed(2)}% - 1px)`;
+    const st = $('#cb-state');
+    if (S.dq) { st.textContent = 'Limit breached'; st.className = 'chip chip-down'; }
+    else if (S.halted) { st.textContent = 'Tripped, halted'; st.className = 'chip chip-down'; }
+    else if (tp < -CFG.dailyHalt * 0.6) { st.textContent = 'Near halt'; st.className = 'chip chip-warn'; }
+    else { st.textContent = 'Armed'; st.className = 'chip chip-up'; }
+    let note;
+    if (S.halted) note = `Halted for today. ${usd(CFG.dqLimit + tp)} left before the −$1,000 limit.`;
+    else if (S.position) {
+      const worst = r2(S.realizedToday - (S.position.beStepped ? 0 : S.position.risk));
+      note = `If #${S.position.ticket} stops out, today lands at ${usd(worst, true)}. ${worst <= -CFG.dailyHalt ? 'That trips the halt.' : 'Trading continues.'}`;
+    } else {
+      const worst = r2(S.realizedToday - CFG.risk);
+      note = `${usd(tp + CFG.dailyHalt)} above halt. One full $475 stop would leave today at ${usd(worst, true)}${worst <= -CFG.dailyHalt ? ' and trip it' : ''}.`;
+    }
+    $('#cb-note').textContent = note;
+
+    // drawdown floor ladder: 47,500 → 53,000
+    const buf = r2(eq - CFG.floor);
+    const dd = $('#dd-buf'); dd.textContent = usd(buf); dd.className = 'bigfig ' + (buf < 1000 ? 'down' : buf < 2500 ? 'warn' : '');
+    $('#dd-mark').style.left = `calc(${(clamp((eq - CFG.floor) / (CFG.target - CFG.floor), 0, 1) * 100).toFixed(2)}% - 1px)`;
+    $('#dd-note').textContent = `Room for ${(buf / CFG.risk).toFixed(1)} full stops at $475`;
+
+    // timeline
+    const segs = $('#tl-segs'); segs.innerHTML = '';
+    for (let d = 1; d <= CFG.passDays; d++) {
+      const s = document.createElement('div');
+      s.style.height = '6px'; s.style.borderRadius = '1px';
+      s.style.background = d < S.day ? C.emerald : d === S.day ? (S.passed ? C.emerald : 'linear-gradient(90deg,#1FC98E 0%,#1FC98E ' + Math.round(clamp((S.clock - DAY0) / CFG.sessionEnd, 0, 1) * 100) + '%,#263042 0%)') : '#1C2431';
+      segs.appendChild(s);
+    }
+    const daysLeft = CFG.passDays - S.day + 1;
+    const badge = $('#tl-badge'); const tnote = $('#tl-note');
+    if (S.passed) { badge.textContent = `Target reached on day ${S.day}`; badge.className = 'mt-2.5 chip chip-up'; tnote.textContent = 'Objective met. Remaining days are risk-free.'; }
+    else if (S.dq) { badge.textContent = 'Disqualified'; badge.className = 'mt-2.5 chip chip-down'; tnote.textContent = 'Daily limit breached.'; }
+    else {
+      const onTrack = prof >= CFG.minPace * (S.day - 1);
+      badge.textContent = onTrack ? 'On track for 4-day pass' : 'Behind 4-day pace';
+      badge.className = 'mt-2.5 chip ' + (onTrack ? 'chip-up' : 'chip-warn');
+      tnote.textContent = `Needs ${usd(Math.max(0, CFG.profitGoal - prof) / daysLeft)}/day over ${daysLeft} day${daysLeft > 1 ? 's' : ''}`;
+    }
+
+    // top bar
+    $('#tb-price').textContent = px(price);
+    const chg = price - S.candles[0].o; const cEl = $('#tb-chg');
+    cEl.textContent = (chg >= 0 ? '+' : '−') + Math.abs(chg).toFixed(2) + ' today'; cEl.className = 'num text-xs hidden sm:inline ' + (chg >= 0 ? 'up' : 'down');
+    $('#tb-price').className = 'num text-[15px] font-medium ' + (prevPx === null || price === prevPx ? '' : price > prevPx ? 'up' : 'down');
+    prevPx = price;
+    $('#clock').textContent = hms(S.clock) + ' UTC';
+    const hr = (S.clock - DAY0) / 3600e3;
+    $('#session').textContent = hr < 6 ? 'Asian' : hr < 12 ? 'London' : hr < 21 ? 'New York' : 'Closed';
+  }
+
+  /* ---------------- render: bots ---------------- */
+  function renderScout() {
+    const price = last().c; const p = S.position;
+    const rows = [...S.levels.map(l => ({ name: l.name, lvl: px(l.px), d: l.px - price, state: l.state, note: l.note })),
+      { name: 'Bullish FVG', lvl: `${px(S.fvg.lo)}–${px(S.fvg.hi).slice(-5)}`, d: (price >= S.fvg.lo && price <= S.fvg.hi) ? 0 : (price > S.fvg.hi ? S.fvg.hi - price : S.fvg.lo - price), state: S.fvg.state, note: '07:45' }];
+    const chip = st => ({ swept: 'chip-volt', intact: 'chip-dim', armed: 'chip-dim', respected: 'chip-up', tested: 'chip-warn', invalidated: 'chip-down' }[st]);
+    $('#levels').innerHTML = rows.map(r => `
+      <div class="lvl-row">
+        <span class="min-w-0 truncate">${r.name}${r.note ? ` <span class="text-dim text-[11.5px] num">${r.note}</span>` : ''}</span>
+        <span class="num text-ink">${r.lvl}</span>
+        <span class="num ${r.d === 0 ? 'warn' : 'text-muted'}">${r.d === 0 ? 'inside' : (r.d > 0 ? '+' : '−') + Math.abs(r.d).toFixed(2)}</span>
+        <span class="chip ${chip(r.state)} justify-self-end">${r.state}</span>
+      </div>`).join('');
+    const s = $('#scout-status');
+    if (S.pending) { s.textContent = 'Setup found'; s.className = 'chip chip-warn'; }
+    else if (p) { s.textContent = `Tracking #${p.ticket}`; s.className = 'chip chip-volt'; }
+    else if (!tradable()) { s.textContent = 'Monitoring'; s.className = 'chip chip-dim'; }
+    else { s.textContent = 'Scanning'; s.className = 'chip chip-volt'; }
+    const hb = $('#hb'); hb.classList.remove('beat'); void hb.offsetWidth; hb.classList.add('beat');
+    $('#scan-count').textContent = S.scans.toLocaleString('en-US');
+    $('#latency').textContent = 31 + Math.floor(rand() * 18);
+    $('#scout-last').textContent = S.lastScout;
+  }
+
+  function renderArbiter() {
+    const dir = S.position ? S.position.dir : S.pending ? S.pending.dir : 'BUY';
+    const wrap = $('#meters');
+    if (!wrap.children.length) {
+      wrap.innerHTML = METERS.map(m => `
+        <div>
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="text-[13.5px]">${m.name}</span>
+            <span class="num text-[15px]"><b id="mv-${m.k}" class="font-medium"></b><span class="text-dim text-xs">%</span></span>
+          </div>
+          <div class="mbar mt-1.5"><i id="mb-${m.k}"></i></div>
+          <div class="mt-1 flex justify-between gap-3 text-[12px]"><span id="mn-${m.k}" class="text-muted truncate"></span><span class="text-dim num shrink-0">weight ${Math.round(m.w * 100)}%</span></div>
+        </div>`).join('') + `
+        <div class="pt-3 border-t border-line text-[12px] text-muted">
+          <div class="flex justify-between"><span>Weighted conviction</span><span class="num text-ink" id="arb-formula"></span></div>
+        </div>`;
+    }
+    METERS.forEach(m => {
+      const v = S.meters[m.k];
+      $('#mv-' + m.k).textContent = v;
+      const b = $('#mb-' + m.k); b.style.width = v + '%'; b.style.backgroundColor = meterColor(v);
+      $('#mn-' + m.k).textContent = meterNote(m.k, v, dir);
+    });
+    $('#arb-formula').textContent = METERS.map(m => `${S.meters[m.k]}×${m.w.toFixed(2)}`).join(' + ') + ` = ${conviction()}`;
+    const a = $('#arb-status');
+    if (S.pending) { a.textContent = `Auditing ${S.pending.dir}`; a.className = 'ml-auto chip chip-warn'; }
+    else if (S.position) { a.textContent = `Re-auditing #${S.position.ticket}`; a.className = 'ml-auto chip chip-dim'; }
+    else { a.textContent = 'Idle, awaiting Scout'; a.className = 'ml-auto chip chip-dim'; }
+    const ty = $('#typing'), idle = $('#idle-note');
+    if (S.pending) { ty.classList.remove('hidden'); ty.classList.add('flex'); idle.classList.add('hidden'); $('#typing-who').textContent = S.pending.stage === 0 ? 'Arbiter is pulling the four confluence reads' : 'Arbiter is weighing the verdict'; }
+    else { ty.classList.add('hidden'); ty.classList.remove('flex'); idle.classList.remove('hidden'); idle.textContent = `Channel open, ${S.log.length} messages this session`; }
+  }
+
+  function renderVerdict() {
+    const conv = conviction(); const vs = verdictState();
+    $('#conv').textContent = conv;
+    const ring = $('#ring'); const circ = 439.82;
+    ring.style.strokeDashoffset = (circ * (1 - conv / 100)).toFixed(2);
+    ring.setAttribute('stroke', vs === 'halted' || vs === 'dq' ? C.rose : conv >= CFG.threshold ? C.emerald : C.amber);
+    const map = {
+      approved: ['v-approved', 'APPROVED HIGH-RISK ENTRY', '$475 risk'],
+      hold: ['v-hold', 'DECISION: HOLD OUT AND WAIT FOR NEXT SETUP', '$0 risk'],
+      halted: ['v-halted', 'CIRCUIT BREAKER: HALTED FOR TODAY', '$0 risk'],
+      dq: ['v-halted', 'DAILY LIMIT BREACHED', '$0 risk'],
+      passed: ['v-passed', 'TARGET REACHED: NEW RISK LOCKED', '$0 risk'],
+      closed: ['v-closed', 'SESSION CLOSED: FLAT', '$0 risk'],
+    }[vs];
+    const b = $('#vbadge'); b.className = 'vbadge ' + map[0]; $('#vhead').textContent = map[1]; $('#vrisk').textContent = map[2];
+    const p = S.position; const dl = $('#sizing'); const note = $('#sizing-note');
+    const row = (k, v, cls = '') => `<dt class="text-muted">${k}</dt><dd class="num text-right ${cls}">${v}</dd>`;
+    if (p) {
+      dl.innerHTML = row('Ticket', `#${p.ticket} ${p.dir}`, p.dir === 'BUY' ? 'up' : 'down') + row('Stop distance', p.dist.toFixed(2)) + row('Lot size', p.lots.toFixed(2)) +
+        row('Risk at stop', p.beStepped ? '$0.00 (BE)' : usd(p.risk), p.beStepped ? 'up' : 'down') + row('Reward : risk', `${p.rr.toFixed(1)} : 1`) + row('Target value', usd(r2(p.risk * p.rr)), 'up');
+      note.textContent = `Size = $475 ÷ (${p.dist.toFixed(2)} × 100 oz) = ${(CFG.risk / (p.dist * 100)).toFixed(3)}, rounded down to ${p.lots.toFixed(2)} lot so the stop never costs more than $475.`;
+    } else {
+      dl.innerHTML = row('Position', 'Flat', 'text-muted') + row('Risk budget', tradable() ? usd(CFG.risk) : '$0.00') + row('At-risk now', '$0.00') + row('Next check', S.pending ? 'auditing' : tradable() ? `~${Math.max(1, S.nextSetupIn) * 30}s sim` : 'none');
+      note.textContent = tradable() ? 'Every approved entry is sized so a full stop costs at most $475. Hold-outs send no order.' : 'No orders are sent in this state.';
+    }
+  }
+
+  /* ---------------- render: table ---------------- */
+  let tab = 'live';
+  function renderTable() {
+    $('#n-live').textContent = S.execs.length; $('#n-filt').textContent = S.filtered.length;
+    const head = $('#ex-head'), body = $('#ex-body');
+    const convCell = c => `<span class="convbar"><i style="width:${c}%;background:${c >= 65 ? C.emerald : C.amber}"></i></span><span class="num ${c >= 65 ? 'up' : 'warn'}">${c}%</span>`;
+    const dirCell = d => `<span class="chip ${d === 'BUY' ? 'chip-up' : 'chip-down'}">${d}</span>`;
+    if (tab === 'live') {
+      head.innerHTML = `<tr><th>Ticket</th><th>Opened</th><th>Dir</th><th class="r">Entry</th><th class="r">Exit</th><th class="r">Lots</th><th class="r">P&amp;L</th><th class="r">R:R</th><th>Breakeven</th><th>Conviction</th><th>Status</th></tr>`;
+      const p = S.position;
+      body.innerHTML = S.execs.map(e => {
+        const open = e.status === 'OPEN'; const pnl = open && p && p.ticket === e.ticket ? floating() : e.pnl;
+        const stCls = open ? 'chip-volt' : e.pnl > 0.5 ? 'chip-up' : e.pnl < -0.5 ? 'chip-down' : 'chip-warn';
+        const beCls = e.be.startsWith('Stepped') ? 'up' : e.be === 'Pending' ? 'warn' : 'text-dim';
+        return `<tr>
+          <td class="num">#${e.ticket}</td><td class="num text-muted">${e.day} ${e.t}</td><td>${dirCell(e.dir)}</td>
+          <td class="num r">${px(e.entry)}</td><td class="num r ${open ? 'text-dim' : ''}">${open ? px(last().c) : px(e.exit)}</td>
+          <td class="num r">${e.lots.toFixed(2)}</td><td class="num r ${toneCls(pnl)}">${usd(pnl, true)}</td>
+          <td class="num r">1 : ${e.rr.toFixed(1)}</td><td class="${beCls}">${e.be}</td><td>${convCell(e.conv)}</td>
+          <td><span class="chip ${stCls}">${open ? 'Open' : e.status}${e.r !== null && !open ? ` ${(e.r >= 0 ? '+' : '') + e.r.toFixed(2)}R` : ''}</span></td></tr>`;
+      }).join('');
+    } else {
+      head.innerHTML = `<tr><th>Setup</th><th>Seen</th><th>Dir</th><th>Trigger</th><th class="r">Proposed entry</th><th class="r">Lots</th><th class="r">P&amp;L</th><th class="r">Planned R:R</th><th>Breakeven</th><th>Conviction</th><th>Blocked by</th></tr>`;
+      body.innerHTML = S.filtered.map(f => `<tr>
+          <td class="num text-muted">${f.id}</td><td class="num text-muted">${f.day} ${f.t}</td><td>${dirCell(f.dir)}</td><td>${f.kind}</td>
+          <td class="num r">${px(f.entry)}</td><td class="num r text-dim">0.00 <span class="text-[11px]">(${f.lots.toFixed(2)})</span></td>
+          <td class="num r text-dim">$0.00</td><td class="num r">1 : ${f.rr.toFixed(1)}</td><td class="text-dim">No order</td>
+          <td>${convCell(f.conv)}</td><td class="warn">${f.reason}</td></tr>`).join('');
+    }
+    const closed = S.execs.filter(e => e.status !== 'OPEN');
+    const wins = closed.filter(e => e.pnl > 0.5).length;
+    const avgA = Math.round(S.execs.reduce((s, e) => s + e.conv, 0) / Math.max(1, S.execs.length));
+    const avgF = Math.round(S.filtered.reduce((s, e) => s + e.conv, 0) / Math.max(1, S.filtered.length));
+    $('#ex-summary').innerHTML = `<span class="num text-ink">${wins}/${closed.length}</span> winners closed. Avg conviction: approved <span class="num up">${avgA}%</span>, held out <span class="num warn">${avgF}%</span>`;
+  }
+  $('#tab-live').addEventListener('click', () => { tab = 'live'; $('#tab-live').setAttribute('aria-selected', 'true'); $('#tab-filt').setAttribute('aria-selected', 'false'); renderTable(); });
+  $('#tab-filt').addEventListener('click', () => { tab = 'filt'; $('#tab-filt').setAttribute('aria-selected', 'true'); $('#tab-live').setAttribute('aria-selected', 'false'); renderTable(); });
+
+  /* ---------------- chart ---------------- */
+  const cv = $('#chart'); const ctx = cv.getContext('2d');
+  let CW = 0, CH = 0, DPR = 1, G = null, hover = null, drag = null, rafQ = false;
+  const V = { count: 110, offset: 0, show: { asian: true, vwap: true, fvg: true, pd: false, levels: true } };
+  function sizeChart() {
+    const r = cv.parentElement.getBoundingClientRect(); DPR = window.devicePixelRatio || 1;
+    CW = Math.floor(r.width); CH = Math.floor(r.height);
+    cv.width = Math.round(CW * DPR); cv.height = Math.round(CH * DPR); cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+    drawChart();
+  }
+  const requestDraw = () => { if (rafQ) return; rafQ = true; requestAnimationFrame(() => { rafQ = false; drawChart(); }); };
+  function niceStep(span) { const steps = [0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50]; const raw = span / 6; return steps.find(s => s >= raw) || 50; }
+
+  function drawChart() {
+    if (!CW || !S) return;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, CW, CH);
+    const PADL = 6, PADR = 90, PADT = 10, PADB = 24;
+    const pw = CW - PADL - PADR, ph = CH - PADT - PADB;
+    const n = S.candles.length;
+    const count = clamp(V.count, 24, n); V.offset = clamp(V.offset, 0, n - count);
+    const end = n - V.offset, start = end - count;
+    const cw = pw / count;
+    const vis = S.candles.slice(start, end);
+    let lo = Math.min(...vis.map(c => c.l)), hi = Math.max(...vis.map(c => c.h));
+    const p = S.position; const extra = [];
+    if (V.show.levels && p) extra.push(p.sl, p.tp, p.entry);
+    if (V.show.asian) extra.push(S.asian.hi, S.asian.lo);
+    if (V.show.pd) extra.push(S.pdh, S.pdl);
+    extra.forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); });
+    const pad = (hi - lo) * 0.07 || 1; lo -= pad; hi += pad;
+    const y = v => PADT + (hi - v) / (hi - lo) * ph;
+    const x = i => PADL + (i - start + 0.5) * cw;
+    G = { start, end, cw, PADL, PADR, PADT, PADB, pw, ph, lo, hi, y, x };
+
+    // grid
+    const stp = niceStep(hi - lo); const gridLabels = [];
+    ctx.font = '11px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+    for (let v = Math.ceil(lo / stp) * stp; v <= hi; v += stp) {
+      const yy = Math.round(y(v)) + 0.5;
+      ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PADL, yy); ctx.lineTo(PADL + pw, yy); ctx.stroke();
+      gridLabels.push({ v, yy });
+    }
+    // time labels (hourly)
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    for (let i = start; i < end; i++) {
+      const t = S.candles[i].t;
+      if (t % 3600e3 === 0) {
+        const xx = Math.round(x(i)) + 0.5;
+        ctx.strokeStyle = 'rgba(255,255,255,.03)'; ctx.beginPath(); ctx.moveTo(xx, PADT); ctx.lineTo(xx, PADT + ph); ctx.stroke();
+        if (xx > PADL + 20 && xx < PADL + pw - 16 && (cw * 12 > 34 || (t / 3600e3) % 2 === 0)) { ctx.fillStyle = C.dim; ctx.fillText(hm(t), xx, CH - 7); }
+      }
+    }
+
+    ctx.save(); ctx.beginPath(); ctx.rect(PADL, PADT, pw, ph); ctx.clip();
+
+    // Asian session box (00:00–06:00 UTC) + extended range lines
+    if (V.show.asian) {
+      const a0 = Math.max(start, 0), a1 = Math.min(end - 1, 71);
+      const yh = y(S.asian.hi), yl = y(S.asian.lo);
+      if (a0 <= a1) {
+        const x0 = x(a0) - cw / 2, x1 = x(a1) + cw / 2;
+        ctx.fillStyle = 'rgba(47,140,255,.07)'; ctx.fillRect(x0, yh, x1 - x0, yl - yh);
+        ctx.strokeStyle = 'rgba(47,140,255,.55)'; ctx.setLineDash([]); ctx.lineWidth = 1;
+        ctx.strokeRect(Math.round(x0) + .5, Math.round(yh) + .5, Math.round(x1 - x0), Math.round(yl - yh));
+        ctx.fillStyle = 'rgba(47,140,255,.9)'; ctx.font = '11px "IBM Plex Sans", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText('Asian range', x0 + 6, yh + 5);
+      }
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(47,140,255,.45)';
+      const xs = a1 >= a0 ? x(a1) + cw / 2 : PADL;
+      [yh, yl].forEach(yy => { ctx.beginPath(); ctx.moveTo(xs, Math.round(yy) + .5); ctx.lineTo(PADL + pw, Math.round(yy) + .5); ctx.stroke(); });
+      ctx.setLineDash([]);
+    }
+    // FVG zone
+    if (V.show.fvg && S.fvg.i0 < end) {
+      const f = S.fvg; const x0 = Math.max(PADL, x(Math.max(f.i0, start)) - cw / 2);
+      ctx.fillStyle = f.state === 'invalidated' ? 'rgba(90,101,120,.10)' : 'rgba(31,201,142,.09)';
+      ctx.fillRect(x0, y(f.hi), PADL + pw - x0, y(f.lo) - y(f.hi));
+      ctx.fillStyle = f.state === 'invalidated' ? C.dim : 'rgba(31,201,142,.85)'; ctx.font = '11px "IBM Plex Sans", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(f.state === 'invalidated' ? 'FVG (invalid)' : 'Bullish FVG', x0 + 6, y(f.lo) - 3);
+    }
+    // previous-day H/L
+    if (V.show.pd) {
+      ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(134,146,166,.5)';
+      [S.pdh, S.pdl].forEach(v => { const yy = Math.round(y(v)) + .5; ctx.beginPath(); ctx.moveTo(PADL, yy); ctx.lineTo(PADL + pw, yy); ctx.stroke(); });
+      ctx.setLineDash([]);
+    }
+    // VWAP
+    if (V.show.vwap) {
+      ctx.strokeStyle = 'rgba(169,184,204,.85)'; ctx.lineWidth = 1.4; ctx.beginPath();
+      for (let i = start; i < end; i++) { const xx = x(i), yy = y(VW[i]); i === start ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy); }
+      ctx.stroke(); ctx.lineWidth = 1;
+    }
+    // candles
+    const bw = Math.max(1, Math.min(14, cw * 0.62));
+    for (let i = start; i < end; i++) {
+      const c = S.candles[i]; const up = c.c >= c.o; const col = up ? C.emerald : C.rose;
+      const xx = Math.round(x(i)) + .5;
+      ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(xx, y(c.h)); ctx.lineTo(xx, y(c.l)); ctx.stroke();
+      const yt = y(Math.max(c.o, c.c)), yb = y(Math.min(c.o, c.c));
+      ctx.fillStyle = up ? 'rgba(31,201,142,.92)' : 'rgba(242,80,110,.92)';
+      ctx.fillRect(Math.round(xx - bw / 2), Math.round(yt), Math.max(1, Math.round(bw)), Math.max(1, Math.round(yb - yt)));
+    }
+    // trade levels
+    const tags = [];
+    if (V.show.levels && p) {
+      const line = (v, col, dash, w = 1) => { ctx.setLineDash(dash); ctx.strokeStyle = col; ctx.lineWidth = w; const yy = Math.round(y(v)) + .5; ctx.beginPath(); ctx.moveTo(PADL, yy); ctx.lineTo(PADL + pw, yy); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1; };
+      // risk/reward shading from entry candle forward
+      if (p.openIdx < end) {
+        const x0 = Math.max(PADL, x(Math.max(p.openIdx, start)) - cw / 2);
+        ctx.fillStyle = 'rgba(31,201,142,.05)'; ctx.fillRect(x0, Math.min(y(p.tp), y(p.entry)), PADL + pw - x0, Math.abs(y(p.tp) - y(p.entry)));
+        ctx.fillStyle = 'rgba(242,80,110,.06)'; ctx.fillRect(x0, Math.min(y(p.sl), y(p.entry)), PADL + pw - x0, Math.abs(y(p.sl) - y(p.entry)));
+      }
+      line(p.tp, C.emerald, []); tags.push({ v: p.tp, text: 'TP ' + px(p.tp), bg: C.emerald, fg: '#05261A' });
+      if (!p.beStepped) { line(p.be, C.amber, [5, 4]); tags.push({ v: p.be, text: 'BE ' + px(p.be), bg: C.amber, fg: '#2B1A00' }); }
+      line(p.entry, C.ink, [1, 3]); tags.push({ v: p.entry, text: 'ENT ' + px(p.entry), bg: '#DCE3EE', fg: '#0B0F17' });
+      if (!p.beStepped || p.sl !== p.entry) { line(p.sl, C.rose, []); tags.push({ v: p.sl, text: 'SL ' + px(p.sl), bg: C.rose, fg: '#2A0610' }); }
+      else tags.push({ v: p.sl - 0.0001, text: 'SL=BE', bg: C.rose, fg: '#2A0610' });
+      // entry marker
+      if (p.openIdx >= start && p.openIdx < end) {
+        const ex = x(p.openIdx), ey = y(p.entry); const s = p.dir === 'BUY' ? 1 : -1;
+        ctx.fillStyle = C.ink; ctx.beginPath(); ctx.moveTo(ex, ey + 4 * s); ctx.lineTo(ex - 5, ey + 12 * s); ctx.lineTo(ex + 5, ey + 12 * s); ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // right-axis tags with collision avoidance
+    const L = last();
+    tags.push({ v: L.c, text: px(L.c), bg: L.c >= L.o ? '#16926A' : '#B83A53', fg: '#fff', last: true });
+    if (V.show.vwap) tags.push({ v: VW[VW.length - 1], text: 'VWAP', bg: '#2A3446', fg: C.steel });
+    tags.forEach(t => { t.y = y(t.v); });
+    tags.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < tags.length; i++) if (tags[i].y - tags[i - 1].y < 16) tags[i].y = tags[i - 1].y + 16;
+    for (let i = tags.length - 2; i >= 0; i--) if (tags[i].y > CH - PADB - 8 - (tags.length - 1 - i) * 16) tags[i].y = Math.min(tags[i].y, tags[i + 1].y - 16);
+    ctx.font = '11px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = C.dim;
+    gridLabels.forEach(g => { if (tags.every(t => Math.abs(clamp(t.y, PADT + 7, CH - PADB - 7) - g.yy) > 13)) ctx.fillText(px(g.v), PADL + pw + 8, g.yy); });
+    ctx.font = '500 10.5px "IBM Plex Mono", monospace';
+    tags.forEach(t => {
+      const yy = clamp(t.y, PADT + 7, CH - PADB - 7);
+      ctx.fillStyle = t.bg; ctx.fillRect(PADL + pw + 2, yy - 7.5, PADR - 4, 15);
+      ctx.fillStyle = t.fg; ctx.fillText(t.text, PADL + pw + 6, yy + .5);
+    });
+    if (V.show.levels && !p) { ctx.fillStyle = C.dim; ctx.font = '11px "IBM Plex Sans", sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText('Flat: no active trade levels', PADL + pw - 8, PADT + 6); }
+
+    // crosshair
+    let idx = end - 1;
+    if (hover && hover.mx >= PADL && hover.mx <= PADL + pw && hover.my >= PADT && hover.my <= PADT + ph) {
+      idx = clamp(start + Math.floor((hover.mx - PADL) / cw), start, end - 1);
+      const xx = Math.round(x(idx)) + .5, yy = Math.round(hover.my) + .5;
+      ctx.strokeStyle = 'rgba(220,227,238,.28)'; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(xx, PADT); ctx.lineTo(xx, PADT + ph); ctx.moveTo(PADL, yy); ctx.lineTo(PADL + pw, yy); ctx.stroke(); ctx.setLineDash([]);
+      const pv = hi - (hover.my - PADT) / ph * (hi - lo);
+      ctx.fillStyle = '#2A3446'; ctx.fillRect(PADL + pw + 2, yy - 7.5, PADR - 4, 15);
+      ctx.fillStyle = C.ink; ctx.font = '500 10.5px "IBM Plex Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(px(pv), PADL + pw + 6, yy + .5);
+      ctx.fillStyle = '#2A3446'; ctx.fillRect(xx - 22, CH - PADB + 3, 44, 16);
+      ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.fillText(hm(S.candles[idx].t), xx, CH - PADB + 11.5);
+    }
+    const c = S.candles[idx]; const d = c.c - c.o;
+    $('#readout').innerHTML = `<span class="text-muted">${hm(c.t)}</span>&nbsp; O <span class="text-ink">${px(c.o)}</span> H <span class="text-ink">${px(c.h)}</span> L <span class="text-ink">${px(c.l)}</span> C <span class="${d >= 0 ? 'up' : 'down'}">${px(c.c)}</span>&nbsp; <span class="text-muted">VWAP</span> <span class="text-steel">${px(VW[idx])}</span>&nbsp; <span class="text-muted">vol</span> ${c.v.toLocaleString('en-US')}`;
+  }
+
+  function renderLegend() {
+    const p = S.position; const items = [];
+    const it = (col, k, v) => `<span><span class="sw" style="background:${col}"></span><span class="text-muted">${k}</span> <span class="text-ink">${v}</span></span>`;
+    if (p) {
+      items.push(it(C.ink, 'Entry', px(p.entry)));
+      items.push(it(C.amber, 'BE trigger', p.beStepped ? 'stepped' : px(p.be)));
+      items.push(it(C.rose, 'Stop', px(p.sl)));
+      items.push(it(C.emerald, 'Target', px(p.tp)));
+    } else items.push(`<span class="text-dim">No open position</span>`);
+    items.push(it(C.steel, 'VWAP', px(vwapNow())));
+    items.push(it(C.volt, 'Asian', `${px(S.asian.lo)} to ${px(S.asian.hi)}`));
+    $('#levels-legend').innerHTML = items.join('');
+  }
+
+  cv.addEventListener('pointermove', e => {
+    const r = cv.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top;
+    if (drag && G) { V.offset = clamp(drag.off + Math.round((mx - drag.x) / G.cw), 0, S.candles.length - V.count); }
+    hover = { mx, my }; requestDraw();
+  });
+  cv.addEventListener('pointerleave', () => { hover = null; drag = null; requestDraw(); });
+  cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); drag = { x: e.clientX - r.left, off: V.offset }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointerup', () => { drag = null; });
+  cv.addEventListener('wheel', e => { e.preventDefault(); V.count = clamp(Math.round(V.count * (e.deltaY > 0 ? 1.12 : 0.89)), 24, Math.min(260, S.candles.length)); requestDraw(); }, { passive: false });
+  cv.addEventListener('dblclick', () => { V.count = 110; V.offset = 0; requestDraw(); });
+  document.querySelectorAll('#toggles .tog').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.k; V.show[k] = !V.show[k]; b.setAttribute('aria-pressed', String(V.show[k])); requestDraw();
+  }));
+  new ResizeObserver(sizeChart).observe(cv.parentElement);
+
+  /* ---------------- loop ---------------- */
+  function renderAll() { renderHeader(); renderScout(); renderArbiter(); renderVerdict(); renderTable(); renderLegend(); drawChart(); }
+  let timer = null;
+  function pulseRing() {
+    const ring = $('#refresh-ring');
+    ring.style.transition = 'none'; ring.style.strokeDashoffset = '34.56'; void ring.getBoundingClientRect();
+    ring.style.transition = 'stroke-dashoffset 1s linear'; ring.style.strokeDashoffset = '0';
+  }
+  function tick() { step(); renderAll(); pulseRing(); }
+  function start() { if (timer) return; timer = setInterval(tick, 1000); S.paused = false; pulseRing(); setPauseIcon(); }
+  function stop() { clearInterval(timer); timer = null; S.paused = true; const r = $('#refresh-ring'); r.style.transition = 'none'; r.style.strokeDashoffset = '34.56'; setPauseIcon(); }
+  function setPauseIcon() {
+    const b = $('#btn-pause');
+    b.innerHTML = `<i data-lucide="${S.paused ? 'play' : 'pause'}"></i>`;
+    b.setAttribute('aria-label', S.paused ? 'Resume feed' : 'Pause feed'); b.title = S.paused ? 'Resume feed' : 'Pause feed';
+    $('#refresh-label').textContent = S.paused ? 'paused' : '1s';
+    if (window.lucide) lucide.createIcons();
+  }
+  $('#btn-pause').addEventListener('click', () => (timer ? stop() : start()));
+  $('#btn-reset').addEventListener('click', () => {
+    const wasRunning = !!timer; stop(); seed(); rand = mulberry32((Date.now() & 0xffff) ^ 0x5eed);
+    VW = vwapSeries(); prevEq = null; prevPx = null; V.count = 110; V.offset = 0;
+    renderFeedAll(); renderAll(); if (wasRunning) start();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && timer) { stop(); S._autoPaused = true; } else if (!document.hidden && S._autoPaused) { S._autoPaused = false; start(); } });
+
+  /* ---------------- boot ---------------- */
+  seed(); rand = mulberry32(90517); VW = vwapSeries();
+  if (window.lucide) lucide.createIcons();
+  renderFeedAll(); renderAll(); sizeChart(); start();
+  window.__relay = { get state() { return S; }, step: tick };
+})();
+</script>
+</body>
+</html>
