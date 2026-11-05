@@ -2,7 +2,7 @@
  * Apollo Trading desktop shell.
  * - First launch: creates a private Python environment in the user's data folder and installs the engine's packages
  *   (shows a setup window). Re-runs automatically when an update changes the requirements.
- * - Every launch: starts the Apollo engine (FastAPI backend on 127.0.0.1:5050, or a free port if 5050 is taken) in the background, waits until it is
+ * - Every launch: starts the Apollo engine (FastAPI backend on 127.0.0.1:5150, or a free port if that is taken) in the background, waits until it is
  *   healthy, opens the app, and stops the engine when the app closes.
  * - Auto-updates from GitHub releases (packaged builds).
  * Data (accounts, logs, settings, layouts, strategies) lives in %APPDATA%/Apollo Trading and survives updates.
@@ -28,7 +28,7 @@ let win: BrowserWindow | null = null;
 let splash: BrowserWindow | null = null;
 let engine: ChildProcess | null = null;
 let quitting = false;
-let PORT = 5050;  // preferred; moves to a free port when another program already uses 5050
+let PORT = 5150;  // desktop engine port (5050 is left to dev/WSL copies); moves to a free port if 5150 is taken too
 
 function log(line: string) {
   fs.mkdirSync(LOGS, { recursive: true });
