@@ -2,3 +2,6 @@ data/raw/
 __pycache__/
 *.part
 .venv/
+models/
+signals/
+reports/phase2_oos_*.parquet

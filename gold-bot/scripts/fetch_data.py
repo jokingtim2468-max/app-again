@@ -50,6 +50,7 @@ FOKAN_FILES = [f"DAT_MT_XAUUSD_M1_{y}.csv" for y in range(2009, 2026)] + [
 # Yahoo tickers -> friendly name
 YAHOO_DAILY = {
     "GC=F": "gold_fut",
+    "MGC=F": "micro_gold_fut",   # CME E-micro gold (what we'd trade on Tradovate)
     "SI=F": "silver_fut",
     "HG=F": "copper_fut",
     "CL=F": "wti_fut",
