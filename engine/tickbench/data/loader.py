@@ -76,6 +76,10 @@ def _parse_times(series: pd.Series, extra: pd.Series | None = None) -> np.ndarra
     return to_epoch_ms(dt)
 
 
+def _looks_unix(series) -> bool:
+    return bool(re.fullmatch(r"\d{9,13}(\.\d+)?", str(series.iloc[0]).strip()))
+
+
 def _pick(cols: list[str], names: list[str]) -> str | None:
     for n in names:
         if n.endswith("*"):
@@ -116,15 +120,23 @@ def load_csv(path_or_text: str, symbol: str | None = None, *, is_text: bool = Fa
     h = _pick(cols, ALIASES["high"])
     l = _pick(cols, ALIASES["low"])
     c = _pick(cols, [x for x in ALIASES["close"] if x != "adj close*"]) or _pick(cols, ["adj close*"])
-    v = _pick(cols, ALIASES["volume"])
+    v = None  # prefer a volume column with data (MT5 "<VOL>" is all zeros for forex/CFDs, "<TICKVOL>" isn't)
+    for cand in ALIASES["volume"]:
+        if cand in cols:
+            col = pd.to_numeric(df[cand], errors="coerce")
+            if v is None:
+                v = cand
+            if col.fillna(0).abs().sum() > 0:
+                v = cand
+                break
     if c is None:
         raise DataError("No close/price column found.",
                         hint="Name the columns Date, Open, High, Low, Close, Volume (any order).")
 
     date_col = "<date>" if "<date>" in cols else _pick(cols, ALIASES["datetime"])
     time_col = "<time>" if "<time>" in cols and date_col == "<date>" else None
-    if date_col == "date" and "time" in cols:
-        time_col = "time"
+    if "date" in cols and "time" in cols and not _looks_unix(df["time"]):
+        date_col, time_col = "date", "time"
     if date_col is None:
         raise DataError("No date/time column found.", hint="Add a column named Date or Time.")
     times = _parse_times(df[date_col], df[time_col] if time_col else None)
@@ -176,7 +188,7 @@ TF_LABELS = [(60_000, "1m"), (300_000, "5m"), (900_000, "15m"), (1_800_000, "30m
 
 
 def infer_timeframe(times: np.ndarray) -> str:
-    if len(times) < 3:
+    if len(times) < 2:
         return "?"
     d = float(np.median(np.diff(times)))
     for ms, label in TF_LABELS:

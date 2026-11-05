@@ -12,3 +12,4 @@ engine/build/
 .venv/
 .DS_Store
 *.log
+engine/tests/.tbdata/
