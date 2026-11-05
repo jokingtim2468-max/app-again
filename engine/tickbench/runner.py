@@ -46,6 +46,19 @@ def load_data(spec: dict) -> Bars:
     return bars
 
 
+def infer_tick(bars: Bars) -> float:
+    """Smallest price increment implied by the data's decimals (e.g. 2 decimals -> 0.01)."""
+    sample = np.concatenate([bars.open[:300], bars.close[:300]])
+    decimals = 0
+    for v in sample:
+        s = f"{float(v):.8f}".rstrip("0")
+        d = len(s.split(".")[1]) if "." in s else 0
+        decimals = max(decimals, d)
+        if decimals >= 5:
+            break
+    return 10 ** -min(decimals, 5) if decimals else 1.0
+
+
 def read_script(path: str) -> tuple[str, dict[str, str]]:
     """Return (source, sibling files) — siblings let multi-file Tradovate strategies `require` each other."""
     with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
@@ -87,6 +100,12 @@ def run(script: dict, data: dict, settings: dict | None = None, params: dict | N
     contract = apply_contract(s, (settings or {}).get("contract"), bars.symbol)
     if kind == "mql4" or kind == "mql5":
         s.hedging = (settings or {}).get("hedging", True)
+    if "tick_size" not in (settings or {}) and not contract:
+        s.tick_size = infer_tick(bars)
+    params = dict(params or {})
+    params["_user_settings"] = sorted((settings or {}).keys())
+    if (settings or {}).get("contract"):
+        params["_contract"] = settings["contract"]
     adapter = build_adapter(kind, source, filename, script.get("options"), extra)
     ctx = run_backtest(bars, adapter, s, params, progress, cancelled)
     equity = np.asarray(ctx.broker.equity_curve, dtype=float)

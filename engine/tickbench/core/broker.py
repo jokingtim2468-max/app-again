@@ -208,7 +208,7 @@ class Broker:
     def submit_market(self, side: int, qty: float | None = None, *, tag: str = "", reason: str = "",
                       sl: float | None = None, tp: float | None = None, sl_offset: float | None = None,
                       tp_offset: float | None = None, trail: float | None = None, immediate: bool = False,
-                      magic: int = 0, comment: str = "", net: bool = False) -> Order | None:
+                      magic: int = 0, comment: str = "", net: bool = False, at_close: bool = False) -> Order | None:
         if side < 0 and not self.s.allow_short and self.position_size <= 0 and not net:
             self.log("warn", f"Short entry ignored (shorting is turned off): {reason or tag}")
             return None
@@ -217,7 +217,7 @@ class Broker:
                   magic=magic, comment=comment, net=net)
         self._next_order += 1
         if immediate:
-            self._execute_market(o, self.bars.open[self.bar])
+            self._execute_market(o, self.bars.close[self.bar] if at_close else self.bars.open[self.bar])
         else:
             self.queue.append(o)
         return o
@@ -239,12 +239,13 @@ class Broker:
         return o
 
     def submit_close(self, *, tag: str | None = None, trade_ids: list[int] | None = None, side: int = 0,
-                     qty: float | None = None, reason: str = "", immediate: bool = False) -> Order:
+                     qty: float | None = None, reason: str = "", immediate: bool = False,
+                     at_close: bool = False) -> Order:
         o = Order(self._next_order, "close", tag=tag or "", reason=reason, close_ids=trade_ids,
                   close_side=side, close_qty=qty, placed_bar=self.bar)
         self._next_order += 1
         if immediate:
-            self._execute_close(o, self.bars.open[self.bar])
+            self._execute_close(o, self.bars.close[self.bar] if at_close else self.bars.open[self.bar])
         else:
             self.queue.append(o)
         return o
@@ -354,9 +355,7 @@ class Broker:
                 self.close_trade(t, raw_price, f"Reversed by {o.reason or o.tag or 'opposite entry'}")
         same = [t for t in self.open if t.side == o.side]
         if len(same) >= max(1, self.s.pyramiding):
-            self.ignored_orders += 1
-            self.log("info", f"Entry ignored, already {'long' if o.side > 0 else 'short'} "
-                     f"(pyramiding limit {self.s.pyramiding}): {o.reason or o.tag}")
+            self.ignored_orders += 1  # summarised once at the end; Pine scripts often re-send entries every bar
             return
         if o.side < 0 and not self.s.allow_short:
             return
@@ -495,6 +494,9 @@ class Broker:
     def finish(self) -> None:
         last = len(self.bars) - 1
         self.bar = last
+        if self.ignored_orders:
+            self.log("info", f"{self.ignored_orders:,} entry order(s) were skipped because a position in that "
+                             f"direction was already open (pyramiding limit {max(1, self.s.pyramiding)}).")
         if self.queue:
             self.log("info", f"{len(self.queue)} order(s) placed on the last bar were never filled (no next bar).")
             self.queue.clear()
