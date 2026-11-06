@@ -11,8 +11,13 @@ def lines(p):
     return [json.loads(l) for l in filter(str.strip, p.read_text().split("\n"))] if p.exists() else []
 
 
-rows = []
+LUAU_CAP = 2000  # keep Luau from drowning out the ~200 C# examples
+rows, n_luau = [], 0
 for r in lines(ROOT / "data/verified/verified.jsonl"):
+    if r["lang"] == "luau":
+        n_luau += 1
+        if n_luau > LUAU_CAP:
+            continue
     ans = f"```{fence[r['lang']]}\n{r['code']}\n```"
     if r.get("explanation"):
         ans += "\n\n" + r["explanation"]

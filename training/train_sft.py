@@ -15,7 +15,7 @@ p.add_argument("--steps", type=int, default=30)
 p.add_argument("--gonogo", action="store_true")
 p.add_argument("--rate", type=float, default=0.89, help="$/hr of the pod")
 p.add_argument("--budget", type=float, default=8.0)
-p.add_argument("--full-examples", type=int, default=3000)
+p.add_argument("--full-examples", type=int, default=2137)
 a = p.parse_args()
 
 import torch
