@@ -39,8 +39,11 @@ def check_csharp(code: str) -> tuple[bool, str]:
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     kept = rejected = 0
-    with open(OUT / "verified.jsonl", "w") as out, open(OUT / "rejected.log", "w") as rej:
-        for path in sorted(RAW.glob("*.jsonl")):
+    only = sys.argv[1] if len(sys.argv) > 1 else None  # e.g. "design" -> only data/raw/design.jsonl
+    name = only or "verified"
+    paths = [RAW / f"{only}.jsonl"] if only else [p for p in sorted(RAW.glob("*.jsonl")) if p.stem != "design"]
+    with open(OUT / f"{name}.jsonl", "w") as out, open(OUT / f"{name}_rejected.log", "w") as rej:
+        for path in paths:
             for line in filter(str.strip, path.read_text().split("\n")):
                 ex = json.loads(line)
                 if ex.get("source") not in ALLOWED:

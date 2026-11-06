@@ -11,3 +11,5 @@ Unreal is documentation-only.
 - `training/train_sft.py` - QLoRA SFT (Unsloth). `--gonogo` mode measures VRAM + speed + projected cost.
 - `training/gonogo.sh` - run on the RTX 4090 pod for the go/no-go check.
 - `blender/cleanup.py` - bpy mesh cleanup for image-to-3D output.
+- `blender/rig.py` - auto-rigs humanoid characters (Rigify basic human, 29 bones).
+- `dataset/design_examples.py` - menus, maps, characters (Luau + C#, all verified) and design specs.
