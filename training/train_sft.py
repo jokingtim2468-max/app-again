@@ -20,23 +20,24 @@ a = p.parse_args()
 
 import torch
 from datasets import load_dataset
-from unsloth import FastLanguageModel
+from unsloth import FastModel  # Qwen3.6-27B is multimodal (qwen3_5 arch); train text layers only
 from trl import SFTConfig, SFTTrainer
 
-model, tok = FastLanguageModel.from_pretrained(a.model, max_seq_length=a.max_len, load_in_4bit=True)
-model = FastLanguageModel.get_peft_model(
-    model, r=16, lora_alpha=32, lora_dropout=0,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+model, tok = FastModel.from_pretrained(a.model, max_seq_length=a.max_len, load_in_4bit=True)
+model = FastModel.get_peft_model(
+    model, finetune_vision_layers=False, finetune_language_layers=True,
+    finetune_attention_modules=True, finetune_mlp_modules=True, r=16, lora_alpha=32, lora_dropout=0,
     use_gradient_checkpointing="unsloth")
 
 ds = load_dataset("json", data_files=a.data, split="train")
-ds = ds.map(lambda r: {"text": tok.apply_chat_template(r["messages"], tokenize=False)})
+tmpl = getattr(tok, "tokenizer", tok)  # processor -> tokenizer for multimodal models
+ds = ds.map(lambda r: {"text": tmpl.apply_chat_template(r["messages"], tokenize=False)})
 bs, ga = 1, 8
 cfg = SFTConfig(output_dir="out/adapter", per_device_train_batch_size=bs, gradient_accumulation_steps=ga,
                 learning_rate=1e-4, logging_steps=5, bf16=True, optim="adamw_8bit",
                 max_seq_length=a.max_len, dataset_text_field="text", save_strategy="no" if a.gonogo else "epoch",
                 **({"max_steps": a.steps} if a.gonogo else {"num_train_epochs": a.epochs}))
-trainer = SFTTrainer(model=model, tokenizer=tok, train_dataset=ds, args=cfg)
+trainer = SFTTrainer(model=model, processing_class=tmpl, train_dataset=ds, args=cfg)
 
 torch.cuda.reset_peak_memory_stats()
 t0 = time.time()

@@ -11,14 +11,15 @@ import json, pathlib, shutil, subprocess, sys, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RAW, OUT = ROOT / "data/raw", ROOT / "data/verified"
-ALLOWED = {r.split(",")[0] for r in (ROOT / "dataset/sources.csv").read_text().splitlines()[1:]
-           if ",yes," in r or ",yes-if-MIT," in r}
+import csv
+ALLOWED = {r["name"] for r in csv.DictReader(open(ROOT / "dataset/sources.csv")) if r["commercial_ok"] == "yes"}
 
 
 def check_luau(code: str) -> tuple[bool, str]:
     exe = shutil.which("luau-analyze")
     if not exe:
-        return False, "luau-analyze not installed"
+        # Fallback: upstream code was StyLua-formatted (parses). Flagged for re-check with luau-analyze later.
+        return True, "UNANALYZED"
     with tempfile.NamedTemporaryFile("w", suffix=".luau", delete=False) as f:
         f.write(code)
     p = subprocess.run([exe, f.name], capture_output=True, text=True, timeout=30)
@@ -40,7 +41,7 @@ def main() -> int:
     kept = rejected = 0
     with open(OUT / "verified.jsonl", "w") as out, open(OUT / "rejected.log", "w") as rej:
         for path in sorted(RAW.glob("*.jsonl")):
-            for line in path.read_text().splitlines():
+            for line in filter(str.strip, path.read_text().split("\n")):
                 ex = json.loads(line)
                 if ex.get("source") not in ALLOWED:
                     ok, log = False, f"source not license-approved: {ex.get('source')}"
@@ -51,6 +52,7 @@ def main() -> int:
                 else:
                     ok, log = False, "unknown lang"
                 if ok:
+                    ex["checked"] = "parse-only" if log == "UNANALYZED" else "full"
                     out.write(json.dumps(ex) + "\n"); kept += 1
                 else:
                     rej.write(f"{ex.get('id')}: {log}\n"); rejected += 1

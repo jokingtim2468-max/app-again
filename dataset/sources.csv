@@ -1,5 +1,4 @@
 name,url,language,license,license_verified,commercial_ok,notes
-Roblox/luau (tests + examples),https://github.com/luau-lang/luau,luau,MIT,no,yes-if-MIT,re-verify LICENSE file
-luau_corpus,https://huggingface.co/datasets/Roblox/luau_corpus,luau,MIT (reported on a mirror),no,unknown,re-verify on official page before use
-Unity-Technologies samples,https://github.com/Unity-Technologies,csharp,varies per repo,no,check each,many use Unity Companion License - check terms
+Roblox-Luau-Reasoning-v1.0,https://hf.co/datasets/TorpedoSoftware/Roblox-Luau-Reasoning-v1.0,luau,MIT,yes,yes,code from Roblox/luau_corpus (MIT); prompts LLM-generated via Together API
+unity-dev-instructions-github,https://hf.co/datasets/vishnuOI/unity-dev-instructions,csharp,CC-BY-4.0 (github subset from MIT/Apache repos),yes,yes,attribution required; stackoverflow (CC-BY-SA) + unity_docs rows EXCLUDED
 hand-written,local,luau+csharp,own,yes,yes,written in this repo

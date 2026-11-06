@@ -4,3 +4,6 @@ data/*.jsonl
 out/
 gonogo_result.json
 __pycache__/
+dataset/csharp_check/bin/
+dataset/csharp_check/obj/
+dataset/csharp_check/Example.cs
