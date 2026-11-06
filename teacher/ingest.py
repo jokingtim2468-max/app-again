@@ -28,7 +28,11 @@ FENCE = re.compile(r"```[\w#+-]*\n(.*?)```", re.S)
 stats = Counter()
 out = open(ROOT / "data/verified/teacher.jsonl", "w")
 PROMPTS = {r["id"]: r for r in map(json.loads, filter(str.strip, open(ROOT / "teacher/prompts.jsonl").read().split("\n")))}
+EXCLUDE = {l.split()[0] for l in (ROOT / "teacher/exclude.txt").read_text().splitlines() if l.strip()} if (ROOT / "teacher/exclude.txt").exists() else set()
 for line in filter(str.strip, open(sys.argv[1]).read().split("\n")):
+    if json.loads(line)["id"] in EXCLUDE:
+        stats["reject_manual_review"] += 1
+        continue
     t = json.loads(line)
     if "candidates" not in t:  # answers from another model: {"id": "p000", "answer": "..."}
         t = {**PROMPTS[t["id"]], "candidates": [t["answer"]]}
