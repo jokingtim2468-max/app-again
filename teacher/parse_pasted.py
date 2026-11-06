@@ -16,6 +16,7 @@ for path in sys.argv[1:]:
     for h, nxt in zip(heads, heads[1:] + [None]):
         body = text[h.end(): nxt.start() if nxt else len(text)]
         body = re.sub(r"^(Lua|Luau|C#|csharp)\s*\n(?=\s*```)", "", body, flags=re.M | re.I)  # drop chat-UI language labels
+        body = re.split(r"^\d+:\d{2}\s*$", body, flags=re.M)[0]  # drop pasted video/search cards (e.g. "3:11" + YouTube title)
         answers[h.group(1)] = body.strip()
 ans_file.write_text("\n".join(json.dumps({"id": k, "answer": v}) for k, v in sorted(answers.items())) + "\n")
 print(f"{len(answers)} answers in {ans_file.name}")
