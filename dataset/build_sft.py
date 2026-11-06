@@ -18,8 +18,8 @@ for r in [x for f in sorted((ROOT / "data/verified").glob("*.jsonl")) for x in l
         n_luau += 1
         if n_luau > LUAU_CAP:
             continue
-    ans = f"```{fence[r['lang']]}\n{r['code']}\n```"
-    if r.get("explanation"):
+    ans = r.get("response") or f"```{fence[r['lang']]}\n{r['code']}\n```"
+    if r.get("explanation") and not r.get("response"):
         ans += "\n\n" + r["explanation"]
     rows.append({"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": r["prompt"]},
                               {"role": "assistant", "content": ans}], "lang": r["lang"]})
