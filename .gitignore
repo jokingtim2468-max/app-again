@@ -1,0 +1,6 @@
+data/raw/*
+data/verified/*
+data/*.jsonl
+out/
+gonogo_result.json
+__pycache__/

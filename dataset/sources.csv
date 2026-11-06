@@ -1,0 +1,5 @@
+name,url,language,license,license_verified,commercial_ok,notes
+Roblox/luau (tests + examples),https://github.com/luau-lang/luau,luau,MIT,no,yes-if-MIT,re-verify LICENSE file
+luau_corpus,https://huggingface.co/datasets/Roblox/luau_corpus,luau,MIT (reported on a mirror),no,unknown,re-verify on official page before use
+Unity-Technologies samples,https://github.com/Unity-Technologies,csharp,varies per repo,no,check each,many use Unity Companion License - check terms
+hand-written,local,luau+csharp,own,yes,yes,written in this repo
