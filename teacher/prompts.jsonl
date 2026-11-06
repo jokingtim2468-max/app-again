@@ -1,0 +1,288 @@
+{"id": "p000", "engine": "roblox", "topic": "menus", "prompt": "Make a main menu for my tycoon game with Play, Shop and Settings buttons that slide in from the left one after another when the player joins."}
+{"id": "p001", "engine": "roblox", "topic": "menus", "prompt": "Create a pause-style menu for my Roblox horror game that blurs the background and lowers music volume while open."}
+{"id": "p002", "engine": "roblox", "topic": "menus", "prompt": "Build a settings menu that saves the player's FOV, music volume and graphics-quality choice with DataStoreService so it loads next time."}
+{"id": "p003", "engine": "roblox", "topic": "menus", "prompt": "I want a loading screen that shows a progress bar while ContentProvider preloads my map's assets, then fades out."}
+{"id": "p004", "engine": "roblox", "topic": "menus", "prompt": "Make a team-select menu with Red and Blue team cards that shows how many players are on each team and blocks joining the bigger team."}
+{"id": "p005", "engine": "roblox", "topic": "menus", "prompt": "Create a mobile-friendly main menu that rearranges its buttons into a column on phones and a row on PC using the screen size."}
+{"id": "p006", "engine": "roblox", "topic": "menus", "prompt": "Build a credits screen that auto-scrolls a list of names and roles and has a Back button that returns to the main menu."}
+{"id": "p007", "engine": "roblox", "topic": "menus", "prompt": "Make a confirmation popup module I can reuse: Prompt(title, message) returns true or false depending on which button the player clicks."}
+{"id": "p008", "engine": "unity", "topic": "menus", "prompt": "Create a main menu with UI Toolkit that has Play, Continue (disabled if there is no save), Settings and Quit."}
+{"id": "p009", "engine": "unity", "topic": "menus", "prompt": "Make a settings screen with sliders for master volume and mouse sensitivity plus a fullscreen toggle, saved with PlayerPrefs."}
+{"id": "p010", "engine": "unity", "topic": "menus", "prompt": "Build a pause menu that stops time, shows Resume, Restart Level and Quit to Menu, and closes when Escape is pressed again."}
+{"id": "p011", "engine": "unity", "topic": "menus", "prompt": "Write a level-select menu that builds one button per level from a list, shows a lock on levels not yet unlocked, and loads the scene on click."}
+{"id": "p012", "engine": "unity", "topic": "menus", "prompt": "Make a loading screen that loads the next scene asynchronously and shows the progress percentage on a label."}
+{"id": "p013", "engine": "unity", "topic": "menus", "prompt": "Create a game-over screen that fades in, shows the final score and best score, and offers Retry and Main Menu buttons."}
+{"id": "p014", "engine": "unity", "topic": "menus", "prompt": "Build a reusable confirmation dialog with UI Toolkit: Show(message, onYes, onNo)."}
+{"id": "p015", "engine": "unity", "topic": "menus", "prompt": "Make a key-rebinding menu for jump, sprint and interact that waits for the next key press and saves the bindings with PlayerPrefs."}
+{"id": "p016", "engine": "roblox", "topic": "hud", "prompt": "Make a health bar above the hotbar that smoothly tweens when the player takes damage and turns red below 25%."}
+{"id": "p017", "engine": "roblox", "topic": "hud", "prompt": "Create a stamina bar that only appears while sprinting or regenerating and hides after 2 seconds at full stamina."}
+{"id": "p018", "engine": "roblox", "topic": "hud", "prompt": "Show floating damage numbers above enemies when they are hit, rising and fading over 1 second."}
+{"id": "p019", "engine": "roblox", "topic": "hud", "prompt": "Build a coin counter in the top-right that animates counting up when the player's leaderstats Coins value changes."}
+{"id": "p020", "engine": "roblox", "topic": "hud", "prompt": "Make a round timer at the top of the screen that the server controls and every client displays in mm:ss format."}
+{"id": "p021", "engine": "roblox", "topic": "hud", "prompt": "Create an objective tracker on the left side that lists the current quest steps and checks them off as they complete."}
+{"id": "p022", "engine": "roblox", "topic": "hud", "prompt": "Add a compass bar at the top of the screen that shows N/E/S/W and a marker pointing to the next objective."}
+{"id": "p023", "engine": "roblox", "topic": "hud", "prompt": "Make a boss health bar that appears when a boss spawns, shows its name and phase, and disappears when it dies."}
+{"id": "p024", "engine": "unity", "topic": "hud", "prompt": "Create a health bar with UI Toolkit that listens to a Health component's event and lerps the fill width smoothly."}
+{"id": "p025", "engine": "unity", "topic": "hud", "prompt": "Make a crosshair that expands while the player is moving and shrinks back when standing still."}
+{"id": "p026", "engine": "unity", "topic": "hud", "prompt": "Build an ammo counter that shows current/max ammo and flashes red when reloading is needed."}
+{"id": "p027", "engine": "unity", "topic": "hud", "prompt": "Show damage numbers in world space above enemies that face the camera and fade out over time."}
+{"id": "p028", "engine": "unity", "topic": "hud", "prompt": "Make a score display that pops (scales up briefly) every time the score increases."}
+{"id": "p029", "engine": "unity", "topic": "hud", "prompt": "Create a minimap marker system where enemies, pickups and objectives register themselves and appear as colored dots."}
+{"id": "p030", "engine": "unity", "topic": "hud", "prompt": "Build an interaction prompt that shows 'Press E to <action>' when the player looks at an interactable object within 3 meters."}
+{"id": "p031", "engine": "unity", "topic": "hud", "prompt": "Make a timer HUD for a racing game that shows the current lap time, best lap and lap count."}
+{"id": "p032", "engine": "roblox", "topic": "inventory", "prompt": "Build a 5-slot hotbar that equips tools from the backpack with number keys 1-5 and highlights the selected slot."}
+{"id": "p033", "engine": "roblox", "topic": "inventory", "prompt": "Create a grid inventory with stacking items (max 64 per stack) where the server owns the data and the client only displays it."}
+{"id": "p034", "engine": "roblox", "topic": "inventory", "prompt": "Make a drag-and-drop inventory UI where players can move items between slots and the server validates every move."}
+{"id": "p035", "engine": "roblox", "topic": "inventory", "prompt": "Add an item tooltip that appears when hovering an inventory slot showing name, rarity color and description."}
+{"id": "p036", "engine": "roblox", "topic": "inventory", "prompt": "Make an equipment panel with Head, Body and Weapon slots that changes the character's stats when items are equipped."}
+{"id": "p037", "engine": "roblox", "topic": "inventory", "prompt": "Create a loot pickup system: items dropped in the world can be collected by touching them and go into the server inventory."}
+{"id": "p038", "engine": "roblox", "topic": "inventory", "prompt": "Build a crafting menu where combining 3 Wood and 2 Stone makes a Pickaxe, checked on the server."}
+{"id": "p039", "engine": "roblox", "topic": "inventory", "prompt": "Make an inventory that saves to DataStoreService with retries and loads when the player rejoins."}
+{"id": "p040", "engine": "unity", "topic": "inventory", "prompt": "Create an inventory system with ScriptableObject item definitions and a List-based inventory that supports stacking."}
+{"id": "p041", "engine": "unity", "topic": "inventory", "prompt": "Build a 9-slot hotbar where scrolling the mouse wheel or pressing 1-9 selects the active item."}
+{"id": "p042", "engine": "unity", "topic": "inventory", "prompt": "Make an inventory UI with UI Toolkit that rebuilds its grid whenever the inventory's OnChanged event fires."}
+{"id": "p043", "engine": "unity", "topic": "inventory", "prompt": "Write a crafting system with recipes as ScriptableObjects that checks if the inventory has the ingredients and consumes them."}
+{"id": "p044", "engine": "unity", "topic": "inventory", "prompt": "Create an equipment system with slots for helmet, armor and weapon that adds item stat bonuses to the player."}
+{"id": "p045", "engine": "unity", "topic": "inventory", "prompt": "Make item pickups that bob up and down, rotate, and get added to the inventory on trigger enter."}
+{"id": "p046", "engine": "unity", "topic": "inventory", "prompt": "Build a chest that opens with E, shows its own item list and lets the player take all items."}
+{"id": "p047", "engine": "unity", "topic": "inventory", "prompt": "Make a weight-limited inventory where adding an item fails if the total weight would exceed the limit."}
+{"id": "p048", "engine": "roblox", "topic": "shop", "prompt": "Create a shop that sells speed coils and gravity coils for in-game coins, with all purchase checks done on the server."}
+{"id": "p049", "engine": "roblox", "topic": "shop", "prompt": "Make a gamepass shop button that prompts the VIP gamepass and gives a VIP chat tag and 2x coins once owned."}
+{"id": "p050", "engine": "roblox", "topic": "shop", "prompt": "Build a developer product that gives 500 coins, using ProcessReceipt correctly so purchases are never lost or doubled."}
+{"id": "p051", "engine": "roblox", "topic": "shop", "prompt": "Make a daily reward system that gives increasing coins for logging in on consecutive days and resets if a day is missed."}
+{"id": "p052", "engine": "roblox", "topic": "shop", "prompt": "Create a tycoon dropper that spawns ore every 2 seconds and a collector that converts ore into cash for the plot owner."}
+{"id": "p053", "engine": "roblox", "topic": "shop", "prompt": "Build a pet egg shop where each egg has weighted odds for common, rare and legendary pets, rolled on the server."}
+{"id": "p054", "engine": "roblox", "topic": "shop", "prompt": "Make a rotating item shop whose stock changes every hour and is the same for every server using the current time as a seed."}
+{"id": "p055", "engine": "roblox", "topic": "shop", "prompt": "Create a trading system between two players with both confirming before items swap, protected against duping."}
+{"id": "p056", "engine": "unity", "topic": "shop", "prompt": "Make a shop system where items have prices in a ScriptableObject and buying deducts coins from a currency manager."}
+{"id": "p057", "engine": "unity", "topic": "shop", "prompt": "Create a currency manager singleton with Add, TrySpend and an OnChanged event, saved with PlayerPrefs."}
+{"id": "p058", "engine": "unity", "topic": "shop", "prompt": "Build an upgrade shop where each upgrade's cost doubles per level and the shop UI disables buttons you can't afford."}
+{"id": "p059", "engine": "unity", "topic": "shop", "prompt": "Make an idle-game income system that earns money per second from owned generators, including offline earnings on load."}
+{"id": "p060", "engine": "unity", "topic": "shop", "prompt": "Create a loot box that picks a reward from a weighted table and shows the result."}
+{"id": "p061", "engine": "unity", "topic": "shop", "prompt": "Make a vendor NPC that opens a shop panel when the player is close and presses E."}
+{"id": "p062", "engine": "unity", "topic": "shop", "prompt": "Build a sell system where selling an item gives back 50% of its buy price."}
+{"id": "p063", "engine": "unity", "topic": "shop", "prompt": "Make a daily reward calendar that tracks the last claim date and the streak using DateTime."}
+{"id": "p064", "engine": "roblox", "topic": "maps", "prompt": "Generate an island map with Terrain: sand beaches, grassy middle, a mountain peak with rock, surrounded by water."}
+{"id": "p065", "engine": "roblox", "topic": "maps", "prompt": "Make a procedural cave system by carving Terrain with 3D noise under a flat surface."}
+{"id": "p066", "engine": "roblox", "topic": "maps", "prompt": "Create a random maze generator using depth-first search that builds walls from Parts on a 20x20 grid."}
+{"id": "p067", "engine": "roblox", "topic": "maps", "prompt": "Build a procedural dungeon of connected rooms and corridors made from Parts, with a spawn room and a boss room furthest away."}
+{"id": "p068", "engine": "roblox", "topic": "maps", "prompt": "Scatter 200 trees and rocks randomly over the Terrain surface using raycasts so they sit on the ground and avoid water."}
+{"id": "p069", "engine": "roblox", "topic": "maps", "prompt": "Make a day-night cycle that changes Lighting ClockTime over a 10-minute day and adjusts ambient color at night."}
+{"id": "p070", "engine": "roblox", "topic": "maps", "prompt": "Create an infinite runner track that spawns road segments ahead of the player and deletes ones behind."}
+{"id": "p071", "engine": "roblox", "topic": "maps", "prompt": "Build a map voting system: at round end players vote between 3 random maps and the winner is cloned from ServerStorage."}
+{"id": "p072", "engine": "unity", "topic": "maps", "prompt": "Generate a 2D cave map with cellular automata on a Tilemap, smoothing it 5 times."}
+{"id": "p073", "engine": "unity", "topic": "maps", "prompt": "Create a 3D terrain with Perlin noise and paint terrain layers by height: grass low, rock mid, snow high."}
+{"id": "p074", "engine": "unity", "topic": "maps", "prompt": "Write a procedural dungeon generator that places random rooms on a grid and connects them with L-shaped corridors."}
+{"id": "p075", "engine": "unity", "topic": "maps", "prompt": "Make an endless runner that spawns track prefabs ahead of the player from an object pool."}
+{"id": "p076", "engine": "unity", "topic": "maps", "prompt": "Scatter vegetation prefabs across a terrain with Poisson disc sampling so nothing overlaps."}
+{"id": "p077", "engine": "unity", "topic": "maps", "prompt": "Create a hex-grid map generator that assigns biomes based on two noise layers (height and moisture)."}
+{"id": "p078", "engine": "unity", "topic": "maps", "prompt": "Build a day-night cycle that rotates the directional light and changes its color and intensity over a 5-minute day."}
+{"id": "p079", "engine": "unity", "topic": "maps", "prompt": "Make a chunk-based infinite world that loads chunks around the player and unloads distant ones."}
+{"id": "p080", "engine": "roblox", "topic": "levels", "prompt": "Build an obby stage system where touching a checkpoint saves the stage and players respawn at their last checkpoint after rejoining."}
+{"id": "p081", "engine": "roblox", "topic": "levels", "prompt": "Make moving platforms that travel between two points with TweenService and carry the player smoothly."}
+{"id": "p082", "engine": "roblox", "topic": "levels", "prompt": "Create disappearing tiles that fade and lose collision 1 second after being stepped on, then come back after 3 seconds."}
+{"id": "p083", "engine": "roblox", "topic": "levels", "prompt": "Make a spinning kill bar obstacle that rotates continuously and kills players on touch."}
+{"id": "p084", "engine": "roblox", "topic": "levels", "prompt": "Build a conveyor belt that pushes players and parts in its facing direction."}
+{"id": "p085", "engine": "roblox", "topic": "levels", "prompt": "Create jump pads that launch players upward with a configurable force stored as an attribute."}
+{"id": "p086", "engine": "roblox", "topic": "levels", "prompt": "Make a teleporter pair: stepping on one sends you to the other with a 2-second cooldown per player."}
+{"id": "p087", "engine": "roblox", "topic": "levels", "prompt": "Build a stage skip button tied to a developer product that moves the player to the next checkpoint."}
+{"id": "p088", "engine": "unity", "topic": "levels", "prompt": "Create checkpoints that save the respawn point and a respawn system that moves the player there on death."}
+{"id": "p089", "engine": "unity", "topic": "levels", "prompt": "Make a moving platform that carries the player correctly when using a CharacterController."}
+{"id": "p090", "engine": "unity", "topic": "levels", "prompt": "Build a door that opens when the player collects a key and stays closed otherwise."}
+{"id": "p091", "engine": "unity", "topic": "levels", "prompt": "Create a pressure plate puzzle where 3 plates must be held down at once to open a gate."}
+{"id": "p092", "engine": "unity", "topic": "levels", "prompt": "Make collapsing floor tiles that shake, fall after 0.5 seconds and respawn after 4 seconds."}
+{"id": "p093", "engine": "unity", "topic": "levels", "prompt": "Build a level-complete trigger that saves the unlocked level count and loads the next scene."}
+{"id": "p094", "engine": "unity", "topic": "levels", "prompt": "Create a trap that shoots projectiles on a timer in its forward direction."}
+{"id": "p095", "engine": "unity", "topic": "levels", "prompt": "Make a lever that toggles a bridge extending and retracting with a smooth animation."}
+{"id": "p096", "engine": "roblox", "topic": "characters", "prompt": "Add a double jump for players that triggers when jumping again in mid-air."}
+{"id": "p097", "engine": "roblox", "topic": "characters", "prompt": "Make a dash ability on Q that pushes the character forward with a 3-second cooldown shown on screen."}
+{"id": "p098", "engine": "roblox", "topic": "characters", "prompt": "Create an over-the-shoulder camera that offsets to the right and toggles shoulders with C."}
+{"id": "p099", "engine": "roblox", "topic": "characters", "prompt": "Make a wall-run where holding space next to a wall lets the player run along it for 1.5 seconds."}
+{"id": "p100", "engine": "roblox", "topic": "characters", "prompt": "Build a character class system where Warrior, Mage and Archer have different max health and walk speed set on the server."}
+{"id": "p101", "engine": "roblox", "topic": "characters", "prompt": "Make a crouch on Ctrl that lowers walk speed and plays a crouch animation."}
+{"id": "p102", "engine": "roblox", "topic": "characters", "prompt": "Create a ragdoll on death that converts Motor6Ds to BallSocketConstraints."}
+{"id": "p103", "engine": "roblox", "topic": "characters", "prompt": "Add a grappling hook tool that pulls the player toward where they click using a rope constraint."}
+{"id": "p104", "engine": "unity", "topic": "characters", "prompt": "Write a first-person controller with mouse look, WASD movement, sprinting and jumping using CharacterController."}
+{"id": "p105", "engine": "unity", "topic": "characters", "prompt": "Make a 2D platformer controller with coyote time and jump buffering using Rigidbody2D."}
+{"id": "p106", "engine": "unity", "topic": "characters", "prompt": "Create a dash ability with a cooldown that moves the player a fixed distance quickly."}
+{"id": "p107", "engine": "unity", "topic": "characters", "prompt": "Build a third-person camera that orbits the player with the mouse and avoids clipping through walls."}
+{"id": "p108", "engine": "unity", "topic": "characters", "prompt": "Make a character animator controller script that sets Speed, Grounded and Jump parameters from movement."}
+{"id": "p109", "engine": "unity", "topic": "characters", "prompt": "Create a wall jump for a 2D platformer that pushes the player away from the wall."}
+{"id": "p110", "engine": "unity", "topic": "characters", "prompt": "Make a top-down twin-stick controller where WASD moves and the character faces the mouse."}
+{"id": "p111", "engine": "unity", "topic": "characters", "prompt": "Write a ledge grab system that detects ledges with raycasts and lets the player climb up."}
+{"id": "p112", "engine": "roblox", "topic": "ai", "prompt": "Make a zombie NPC that wanders randomly, chases the nearest player within 50 studs and attacks when close."}
+{"id": "p113", "engine": "roblox", "topic": "ai", "prompt": "Create an enemy that patrols waypoints and switches to chasing when it sees a player with a raycast line-of-sight check."}
+{"id": "p114", "engine": "roblox", "topic": "ai", "prompt": "Build a pet that follows its owner, staying 5 studs behind and teleporting if it gets more than 100 studs away."}
+{"id": "p115", "engine": "roblox", "topic": "ai", "prompt": "Make a ranged enemy that keeps 30 studs away from the player and shoots projectiles every 2 seconds."}
+{"id": "p116", "engine": "roblox", "topic": "ai", "prompt": "Create a shopkeeper NPC that turns to face the nearest player and shows a dialogue prompt with ProximityPrompt."}
+{"id": "p117", "engine": "roblox", "topic": "ai", "prompt": "Make a boss with three phases that change its attack pattern at 66% and 33% health."}
+{"id": "p118", "engine": "roblox", "topic": "ai", "prompt": "Build an enemy spawner that keeps up to 10 enemies alive and spawns new ones at random spawn points."}
+{"id": "p119", "engine": "roblox", "topic": "ai", "prompt": "Create a flocking group of birds that move together using separation, alignment and cohesion."}
+{"id": "p120", "engine": "unity", "topic": "ai", "prompt": "Write an enemy AI state machine with Idle, Patrol, Chase and Attack states using NavMeshAgent."}
+{"id": "p121", "engine": "unity", "topic": "ai", "prompt": "Make an enemy with a vision cone that detects the player by angle, distance and a raycast for walls."}
+{"id": "p122", "engine": "unity", "topic": "ai", "prompt": "Create a companion that follows the player on the NavMesh and stops at a set distance."}
+{"id": "p123", "engine": "unity", "topic": "ai", "prompt": "Build a turret that rotates toward the closest enemy in range and fires at a set rate."}
+{"id": "p124", "engine": "unity", "topic": "ai", "prompt": "Make a wave spawner that spawns increasing numbers of enemies per wave with a delay between waves."}
+{"id": "p125", "engine": "unity", "topic": "ai", "prompt": "Create a boids flocking script for fish that stay inside a bounding box."}
+{"id": "p126", "engine": "unity", "topic": "ai", "prompt": "Write a simple utility AI where an NPC chooses between eating, sleeping and working based on need scores."}
+{"id": "p127", "engine": "unity", "topic": "ai", "prompt": "Make an enemy that flees to a random point away from the player when its health is below 20%."}
+{"id": "p128", "engine": "roblox", "topic": "combat", "prompt": "Make a sword tool with a 3-hit combo where each swing deals more damage, with hit detection done on the server."}
+{"id": "p129", "engine": "roblox", "topic": "combat", "prompt": "Create a hitbox module using GetPartBoundsInBox that hits each enemy only once per swing."}
+{"id": "p130", "engine": "roblox", "topic": "combat", "prompt": "Build a gun tool that raycasts from the server after validating the client's shot direction to stop cheaters."}
+{"id": "p131", "engine": "roblox", "topic": "combat", "prompt": "Make a block mechanic: holding F reduces incoming damage by 70% but slows the player."}
+{"id": "p132", "engine": "roblox", "topic": "combat", "prompt": "Create a fireball ability that flies forward, explodes on hit and damages everything in a radius."}
+{"id": "p133", "engine": "roblox", "topic": "combat", "prompt": "Make a knockback system that pushes hit characters away from the attacker with LinearVelocity."}
+{"id": "p134", "engine": "roblox", "topic": "combat", "prompt": "Build a PvP kill feed that shows 'Killer eliminated Victim' to everyone for 5 seconds."}
+{"id": "p135", "engine": "roblox", "topic": "combat", "prompt": "Create a combat-tag system that prevents players from resetting for 10 seconds after taking damage."}
+{"id": "p136", "engine": "unity", "topic": "combat", "prompt": "Create a melee attack that uses Physics.OverlapSphere in front of the player and damages each enemy once."}
+{"id": "p137", "engine": "unity", "topic": "combat", "prompt": "Make a hitscan gun with fire rate, ammo, reload time and a muzzle flash."}
+{"id": "p138", "engine": "unity", "topic": "combat", "prompt": "Build a projectile that moves forward, damages what it hits and returns itself to an object pool."}
+{"id": "p139", "engine": "unity", "topic": "combat", "prompt": "Write an IDamageable interface and implement it on player, enemy and breakable crate."}
+{"id": "p140", "engine": "unity", "topic": "combat", "prompt": "Make a combo system that tracks button presses within a time window and triggers different attacks."}
+{"id": "p141", "engine": "unity", "topic": "combat", "prompt": "Create a knockback effect for enemies hit by explosions using Rigidbody.AddExplosionForce."}
+{"id": "p142", "engine": "unity", "topic": "combat", "prompt": "Make invincibility frames after taking damage with the sprite flashing."}
+{"id": "p143", "engine": "unity", "topic": "combat", "prompt": "Build a lock-on targeting system that cycles through enemies in front of the camera with Tab."}
+{"id": "p144", "engine": "roblox", "topic": "saving", "prompt": "Save and load player coins, level and inventory with DataStoreService using UpdateAsync and retries."}
+{"id": "p145", "engine": "roblox", "topic": "saving", "prompt": "Make a data module with session locking so the same player's data can't be loaded on two servers at once."}
+{"id": "p146", "engine": "roblox", "topic": "saving", "prompt": "Create autosave every 2 minutes plus save on PlayerRemoving and BindToClose."}
+{"id": "p147", "engine": "roblox", "topic": "saving", "prompt": "Build a data migration system that upgrades old save tables to the new format using a version number."}
+{"id": "p148", "engine": "roblox", "topic": "saving", "prompt": "Make a global leaderboard with OrderedDataStore that shows the top 10 players by wins on a SurfaceGui."}
+{"id": "p149", "engine": "roblox", "topic": "saving", "prompt": "Save the position and rotation of every block a player placed in a building game."}
+{"id": "p150", "engine": "roblox", "topic": "saving", "prompt": "Create a settings save that stores keybinds and options per player."}
+{"id": "p151", "engine": "roblox", "topic": "saving", "prompt": "Make a gift system using MessagingService so a gift sent to an online player arrives on any server."}
+{"id": "p152", "engine": "unity", "topic": "saving", "prompt": "Write a save system that serializes player data to JSON with JsonUtility in Application.persistentDataPath."}
+{"id": "p153", "engine": "unity", "topic": "saving", "prompt": "Make a save slot system with 3 slots showing date, play time and level for each."}
+{"id": "p154", "engine": "unity", "topic": "saving", "prompt": "Create an autosave that runs every 60 seconds and on application quit."}
+{"id": "p155", "engine": "unity", "topic": "saving", "prompt": "Build a save system for placed objects that stores prefab id, position and rotation and rebuilds them on load."}
+{"id": "p156", "engine": "unity", "topic": "saving", "prompt": "Make save data versioning that upgrades old saves to the newest format."}
+{"id": "p157", "engine": "unity", "topic": "saving", "prompt": "Write a settings manager that saves and applies audio, graphics quality and resolution."}
+{"id": "p158", "engine": "unity", "topic": "saving", "prompt": "Create a checkpoint save that stores the scene name and player position."}
+{"id": "p159", "engine": "unity", "topic": "saving", "prompt": "Make a save system that writes to a temp file first and then replaces the real file so saves are never corrupted."}
+{"id": "p160", "engine": "roblox", "topic": "quests", "prompt": "Create a quest system where quests are defined in a ModuleScript with objectives like 'collect 10 apples' and rewards."}
+{"id": "p161", "engine": "roblox", "topic": "quests", "prompt": "Make an NPC dialogue system with branching choices shown in a dialogue box with typing animation."}
+{"id": "p162", "engine": "roblox", "topic": "quests", "prompt": "Build a daily quest board that gives 3 random quests per day from a pool."}
+{"id": "p163", "engine": "roblox", "topic": "quests", "prompt": "Make a kill-quest tracker that counts enemy kills credited to the player who dealt the final hit."}
+{"id": "p164", "engine": "roblox", "topic": "quests", "prompt": "Create an achievement system that awards badges with BadgeService when conditions are met."}
+{"id": "p165", "engine": "roblox", "topic": "quests", "prompt": "Make a tutorial quest chain that unlocks the next step only when the previous one is done."}
+{"id": "p166", "engine": "roblox", "topic": "quests", "prompt": "Build an escort quest where an NPC follows a path and the quest fails if it dies."}
+{"id": "p167", "engine": "roblox", "topic": "quests", "prompt": "Create a quest log UI that shows active and completed quests with progress bars."}
+{"id": "p168", "engine": "unity", "topic": "quests", "prompt": "Create a quest system with ScriptableObject quests, objectives and rewards and a QuestManager tracking progress."}
+{"id": "p169", "engine": "unity", "topic": "quests", "prompt": "Build a dialogue system that reads dialogue nodes with choices and shows them with a typewriter effect."}
+{"id": "p170", "engine": "unity", "topic": "quests", "prompt": "Make an achievement manager that listens to game events and unlocks achievements saved to PlayerPrefs."}
+{"id": "p171", "engine": "unity", "topic": "quests", "prompt": "Create collect-quest objectives that update when the player picks up matching items."}
+{"id": "p172", "engine": "unity", "topic": "quests", "prompt": "Make a quest giver NPC with a '!' marker above its head that changes to '?' when the quest is ready to turn in."}
+{"id": "p173", "engine": "unity", "topic": "quests", "prompt": "Build a quest log UI that lists quests and their objective progress."}
+{"id": "p174", "engine": "unity", "topic": "quests", "prompt": "Create timed quests that fail if not finished within a time limit."}
+{"id": "p175", "engine": "unity", "topic": "quests", "prompt": "Make a reputation system where completing quests for a faction raises standing and unlocks rewards."}
+{"id": "p176", "engine": "roblox", "topic": "leaderboards", "prompt": "Create leaderstats with Kills, Deaths and a K/D ratio that updates live."}
+{"id": "p177", "engine": "roblox", "topic": "leaderboards", "prompt": "Make a weekly leaderboard that resets every Monday using a key based on the week number."}
+{"id": "p178", "engine": "roblox", "topic": "leaderboards", "prompt": "Build a round results screen that ranks players by score and shows the top 3 on a podium."}
+{"id": "p179", "engine": "roblox", "topic": "leaderboards", "prompt": "Make a speedrun timer for an obby that saves each player's best time and shows a global top 10."}
+{"id": "p180", "engine": "roblox", "topic": "leaderboards", "prompt": "Create a level and XP system with an XP curve and level-up effect."}
+{"id": "p181", "engine": "roblox", "topic": "leaderboards", "prompt": "Make a server-wide event counter that shows how many enemies all players have defeated together."}
+{"id": "p182", "engine": "roblox", "topic": "leaderboards", "prompt": "Build a player stats card that shows when you click another player."}
+{"id": "p183", "engine": "roblox", "topic": "leaderboards", "prompt": "Create a rank system that gives players a rank title based on total wins."}
+{"id": "p184", "engine": "unity", "topic": "leaderboards", "prompt": "Create a local high score table that keeps the top 10 scores with names, saved to a JSON file."}
+{"id": "p185", "engine": "unity", "topic": "leaderboards", "prompt": "Make an XP and level system with an AnimationCurve for XP required per level."}
+{"id": "p186", "engine": "unity", "topic": "leaderboards", "prompt": "Build an end-of-match scoreboard that sorts players by score and shows kills and deaths."}
+{"id": "p187", "engine": "unity", "topic": "leaderboards", "prompt": "Create a stats tracker that records play time, jumps and deaths and shows them in a stats menu."}
+{"id": "p188", "engine": "unity", "topic": "leaderboards", "prompt": "Make a combo multiplier that increases score multiplier with consecutive hits and resets after 2 seconds."}
+{"id": "p189", "engine": "unity", "topic": "leaderboards", "prompt": "Build a best-time tracker for each level of a racing game."}
+{"id": "p190", "engine": "unity", "topic": "leaderboards", "prompt": "Create a star rating at level end based on time and collectibles."}
+{"id": "p191", "engine": "unity", "topic": "leaderboards", "prompt": "Make a ranked tier system that maps a rating number to Bronze, Silver, Gold and Diamond."}
+{"id": "p192", "engine": "roblox", "topic": "networking", "prompt": "Set up RemoteEvents for a sword attack where the server checks cooldowns, distance and that the player holds the sword."}
+{"id": "p193", "engine": "roblox", "topic": "networking", "prompt": "Make a rate limiter module for RemoteEvents that kicks players who fire more than 20 times per second."}
+{"id": "p194", "engine": "roblox", "topic": "networking", "prompt": "Create server-side movement checks that flag players moving faster than possible."}
+{"id": "p195", "engine": "roblox", "topic": "networking", "prompt": "Build a RemoteFunction that returns shop prices safely without trusting any client-sent values."}
+{"id": "p196", "engine": "roblox", "topic": "networking", "prompt": "Make a party system where players can invite each other and teleport together with TeleportService."}
+{"id": "p197", "engine": "roblox", "topic": "networking", "prompt": "Create a matchmaking queue that teleports 8 players to a reserved server when full."}
+{"id": "p198", "engine": "roblox", "topic": "networking", "prompt": "Make a global announcement system using MessagingService."}
+{"id": "p199", "engine": "roblox", "topic": "networking", "prompt": "Build a server browser that lists active servers' player counts via MemoryStore."}
+{"id": "p200", "engine": "unity", "topic": "networking", "prompt": "Write a client-side prediction example for player movement that reconciles with authoritative server positions."}
+{"id": "p201", "engine": "unity", "topic": "networking", "prompt": "Make an event bus with typed events so systems communicate without direct references."}
+{"id": "p202", "engine": "unity", "topic": "networking", "prompt": "Create a lag-compensated hit check by storing past positions of targets for 1 second."}
+{"id": "p203", "engine": "unity", "topic": "networking", "prompt": "Build a simple anti-cheat that checks player speed and teleports against allowed limits."}
+{"id": "p204", "engine": "unity", "topic": "networking", "prompt": "Make a lobby system with a ready-up list before starting a match."}
+{"id": "p205", "engine": "unity", "topic": "networking", "prompt": "Write an interpolation component that smoothly moves a remote player between received network snapshots."}
+{"id": "p206", "engine": "unity", "topic": "networking", "prompt": "Create a message serializer that packs position, rotation and health into a byte array."}
+{"id": "p207", "engine": "unity", "topic": "networking", "prompt": "Make a heartbeat timeout that marks a player disconnected after 5 seconds of no messages."}
+{"id": "p208", "engine": "roblox", "topic": "audio", "prompt": "Create a music manager that crossfades between calm and combat music based on nearby enemies."}
+{"id": "p209", "engine": "roblox", "topic": "audio", "prompt": "Make footstep sounds that change based on the floor material the player is walking on."}
+{"id": "p210", "engine": "roblox", "topic": "audio", "prompt": "Build a sound module that plays pooled 3D sounds at positions without creating new Sound objects every time."}
+{"id": "p211", "engine": "roblox", "topic": "audio", "prompt": "Make ambient zones where entering a region changes the background sound."}
+{"id": "p212", "engine": "roblox", "topic": "audio", "prompt": "Create a radio part that plays a playlist of songs in order and loops."}
+{"id": "p213", "engine": "roblox", "topic": "audio", "prompt": "Make a UI click and hover sound for every button in a ScreenGui automatically."}
+{"id": "p214", "engine": "roblox", "topic": "audio", "prompt": "Build a mute music toggle that saves the choice for the player."}
+{"id": "p215", "engine": "roblox", "topic": "audio", "prompt": "Make sound effects get muffled when the player is underwater."}
+{"id": "p216", "engine": "unity", "topic": "audio", "prompt": "Create an audio manager singleton with music and SFX channels and a pool of AudioSources."}
+{"id": "p217", "engine": "unity", "topic": "audio", "prompt": "Make music crossfade between two tracks over 2 seconds."}
+{"id": "p218", "engine": "unity", "topic": "audio", "prompt": "Build footstep sounds that change by ground tag using raycasts."}
+{"id": "p219", "engine": "unity", "topic": "audio", "prompt": "Create random pitch variation for repeated sound effects so they don't sound identical."}
+{"id": "p220", "engine": "unity", "topic": "audio", "prompt": "Make audio zones with box colliders that blend ambient sounds."}
+{"id": "p221", "engine": "unity", "topic": "audio", "prompt": "Build a playlist player that shuffles songs without repeating until all have played."}
+{"id": "p222", "engine": "unity", "topic": "audio", "prompt": "Make UI sound feedback for buttons in UI Toolkit."}
+{"id": "p223", "engine": "unity", "topic": "audio", "prompt": "Create a dynamic music system that adds layers as the intensity value rises."}
+{"id": "p224", "engine": "roblox", "topic": "vfx", "prompt": "Make a coin pickup effect: the coin spins, scales down and emits sparkle particles before disappearing."}
+{"id": "p225", "engine": "roblox", "topic": "vfx", "prompt": "Create a level-up effect with a beam ring and particles around the character."}
+{"id": "p226", "engine": "roblox", "topic": "vfx", "prompt": "Make a screen shake module for the camera with intensity and duration."}
+{"id": "p227", "engine": "roblox", "topic": "vfx", "prompt": "Build a damage flash that briefly turns the hit character red using a Highlight."}
+{"id": "p228", "engine": "roblox", "topic": "vfx", "prompt": "Create a trail effect for sprinting players."}
+{"id": "p229", "engine": "roblox", "topic": "vfx", "prompt": "Make UI buttons bounce when clicked using TweenService."}
+{"id": "p230", "engine": "roblox", "topic": "vfx", "prompt": "Build an explosion effect with particles, a light flash and camera shake for nearby players."}
+{"id": "p231", "engine": "roblox", "topic": "vfx", "prompt": "Create a rainbow color-cycling neon part effect."}
+{"id": "p232", "engine": "unity", "topic": "vfx", "prompt": "Create a screen shake component using Perlin noise with trauma that decays over time."}
+{"id": "p233", "engine": "unity", "topic": "vfx", "prompt": "Make a hit-stop effect that pauses time for 0.05 seconds on a strong hit."}
+{"id": "p234", "engine": "unity", "topic": "vfx", "prompt": "Build a damage flash that tints a material's color red briefly."}
+{"id": "p235", "engine": "unity", "topic": "vfx", "prompt": "Create a dissolve-out effect over time by animating a material float property."}
+{"id": "p236", "engine": "unity", "topic": "vfx", "prompt": "Make a pickup that pulses its scale and emits particles when collected."}
+{"id": "p237", "engine": "unity", "topic": "vfx", "prompt": "Build a tween helper for moving, scaling and fading objects with easing functions."}
+{"id": "p238", "engine": "unity", "topic": "vfx", "prompt": "Make a trail renderer that only shows while dashing."}
+{"id": "p239", "engine": "unity", "topic": "vfx", "prompt": "Create floating text that rises and fades for pickups."}
+{"id": "p240", "engine": "roblox", "topic": "tutorial", "prompt": "Create a step-by-step tutorial with arrows pointing at world objects and UI that advances when each step is done."}
+{"id": "p241", "engine": "roblox", "topic": "tutorial", "prompt": "Make a first-time-player check that runs the tutorial only once and saves completion."}
+{"id": "p242", "engine": "roblox", "topic": "tutorial", "prompt": "Build a highlight that shows the player which button to press next in the UI."}
+{"id": "p243", "engine": "roblox", "topic": "tutorial", "prompt": "Create tips that show on the loading screen picked at random from a list."}
+{"id": "p244", "engine": "roblox", "topic": "tutorial", "prompt": "Make an onboarding flow that gives new players a starter kit and teleports them to the tutorial area."}
+{"id": "p245", "engine": "roblox", "topic": "tutorial", "prompt": "Build a guide beam from the player to the next objective."}
+{"id": "p246", "engine": "roblox", "topic": "tutorial", "prompt": "Create a skip-tutorial button that gives the tutorial rewards anyway."}
+{"id": "p247", "engine": "roblox", "topic": "tutorial", "prompt": "Make context hints that appear the first time the player gets near certain objects."}
+{"id": "p248", "engine": "unity", "topic": "tutorial", "prompt": "Build a tutorial manager with steps that each have a message and a completion condition."}
+{"id": "p249", "engine": "unity", "topic": "tutorial", "prompt": "Make a first-run check with PlayerPrefs to show the tutorial only once."}
+{"id": "p250", "engine": "unity", "topic": "tutorial", "prompt": "Create a highlight overlay that dims everything except a target UI element."}
+{"id": "p251", "engine": "unity", "topic": "tutorial", "prompt": "Make on-screen key prompts that hide after the player uses that key."}
+{"id": "p252", "engine": "unity", "topic": "tutorial", "prompt": "Build a tooltip system that shows hints when hovering over world objects."}
+{"id": "p253", "engine": "unity", "topic": "tutorial", "prompt": "Create a tutorial arrow that points from the screen edge toward an off-screen objective."}
+{"id": "p254", "engine": "unity", "topic": "tutorial", "prompt": "Make a skippable intro sequence that plays text panels in order."}
+{"id": "p255", "engine": "unity", "topic": "tutorial", "prompt": "Create a hint system that shows a tip if the player is stuck in one area for 60 seconds."}
+{"id": "p256", "engine": "roblox", "topic": "performance", "prompt": "Make a projectile pooling module so bullets are reused instead of created and destroyed."}
+{"id": "p257", "engine": "roblox", "topic": "performance", "prompt": "Create a streaming-friendly script that only runs NPC logic for NPCs near a player."}
+{"id": "p258", "engine": "roblox", "topic": "performance", "prompt": "Build a client-side rendering module that hides decorations further than 300 studs away."}
+{"id": "p259", "engine": "roblox", "topic": "performance", "prompt": "Make a debounce utility for Touched events that prevents repeat triggers per player."}
+{"id": "p260", "engine": "roblox", "topic": "performance", "prompt": "Create a Janitor/Maid style cleanup module that disconnects connections and destroys instances."}
+{"id": "p261", "engine": "roblox", "topic": "performance", "prompt": "Make a single Heartbeat loop that updates all spinning coins instead of one script per coin."}
+{"id": "p262", "engine": "roblox", "topic": "performance", "prompt": "Build a part-count and memory monitor that warns in output when thresholds are passed."}
+{"id": "p263", "engine": "roblox", "topic": "performance", "prompt": "Create a batched DataStore writer that queues saves to stay under request limits."}
+{"id": "p264", "engine": "unity", "topic": "performance", "prompt": "Write a generic object pool with Get and Release and a prewarm option."}
+{"id": "p265", "engine": "unity", "topic": "performance", "prompt": "Make a component that disables enemy AI updates when far from the camera."}
+{"id": "p266", "engine": "unity", "topic": "performance", "prompt": "Create an update manager that calls custom ticks on registered objects instead of many Update methods."}
+{"id": "p267", "engine": "unity", "topic": "performance", "prompt": "Build a LOD helper that swaps meshes based on distance."}
+{"id": "p268", "engine": "unity", "topic": "performance", "prompt": "Make a coroutine-free timer system using a sorted list of timers."}
+{"id": "p269", "engine": "unity", "topic": "performance", "prompt": "Create a garbage-free string builder for frequently updated score text."}
+{"id": "p270", "engine": "unity", "topic": "performance", "prompt": "Make a spatial hash grid for fast nearby-enemy queries."}
+{"id": "p271", "engine": "unity", "topic": "performance", "prompt": "Build an FPS counter that shows average and lowest frame times."}
+{"id": "p272", "engine": "roblox", "topic": "rounds", "prompt": "Create a round system with Intermission (20s), Round (120s) and Results (10s) controlled by the server."}
+{"id": "p273", "engine": "roblox", "topic": "rounds", "prompt": "Make a last-player-standing mode where the round ends when one player remains."}
+{"id": "p274", "engine": "roblox", "topic": "rounds", "prompt": "Build a king-of-the-hill zone that gives points per second to the team holding it."}
+{"id": "p275", "engine": "roblox", "topic": "rounds", "prompt": "Create a capture-the-flag mode with flag pickup, drop on death and scoring."}
+{"id": "p276", "engine": "roblox", "topic": "rounds", "prompt": "Make a minimum-players check that waits until 2 players are in before starting."}
+{"id": "p277", "engine": "roblox", "topic": "rounds", "prompt": "Build a spectate system that lets eliminated players cycle through living players."}
+{"id": "p278", "engine": "roblox", "topic": "rounds", "prompt": "Create a sudden death mode that shrinks a safe zone over time."}
+{"id": "p279", "engine": "roblox", "topic": "rounds", "prompt": "Make a vote-kick system that requires a majority vote."}
+{"id": "p280", "engine": "unity", "topic": "rounds", "prompt": "Write a GameManager state machine with Menu, Playing, Paused and GameOver states and events for each change."}
+{"id": "p281", "engine": "unity", "topic": "rounds", "prompt": "Make a wave-based round system with a break between waves and a final boss wave."}
+{"id": "p282", "engine": "unity", "topic": "rounds", "prompt": "Create a match timer that ends the game and shows results when it reaches zero."}
+{"id": "p283", "engine": "unity", "topic": "rounds", "prompt": "Build a lives system that reduces lives on death and triggers game over at zero."}
+{"id": "p284", "engine": "unity", "topic": "rounds", "prompt": "Make a countdown 3-2-1-GO before the race starts that locks player input until GO."}
+{"id": "p285", "engine": "unity", "topic": "rounds", "prompt": "Create a capture zone that fills a progress bar while the player stands inside."}
+{"id": "p286", "engine": "unity", "topic": "rounds", "prompt": "Build a score-attack mode where the game ends when the target score is reached."}
+{"id": "p287", "engine": "unity", "topic": "rounds", "prompt": "Make a difficulty manager that scales enemy health and spawn rate over time."}

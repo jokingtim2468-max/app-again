@@ -12,8 +12,11 @@ from verify import check_csharp, check_luau
 FENCE = re.compile(r"```[\w#+-]*\n(.*?)```", re.S)
 stats = Counter()
 out = open(ROOT / "data/verified/teacher.jsonl", "w")
+PROMPTS = {r["id"]: r for r in map(json.loads, filter(str.strip, open(ROOT / "teacher/prompts.jsonl").read().split("\n")))}
 for line in filter(str.strip, open(sys.argv[1]).read().split("\n")):
     t = json.loads(line)
+    if "candidates" not in t:  # answers from another model: {"id": "p000", "answer": "..."}
+        t = {**PROMPTS[t["id"]], "candidates": [t["answer"]]}
     lang = "luau" if t["engine"] == "roblox" else "csharp"
     stats[f"{lang}_prompts"] += 1
     for ans in t["candidates"]:
